@@ -36,6 +36,8 @@ extern const int8_t field_index_by_coords[BOARD_SIZE][BOARD_SIZE];
 extern const uint8_t coords_by_field_index[FIELD_COUNT];
 extern const char *field_names[FIELD_COUNT];
 
+constexpr int gate_index[2] = {0, FIELD_COUNT - 1};
+
 inline bool OnBoard(int r, int c) {
     return abs(r - 4) + abs(c - 4) <= 4;
 }
@@ -95,6 +97,13 @@ enum StatusEffects : uint8_t {
     CHAINED      = 8,  // Chained by enemy Hades
 };
 
+enum Player : uint8_t {
+    LIGHT = 0,
+    DARK  = 1,
+};
+
+inline Player Other(Player p) { return (Player)(1 - p); }
+
 struct GodState {
     uint8_t       hp;  // hit points left
     int8_t        fi;  // field index (or -1 if not yet summoned or dead)
@@ -102,16 +111,72 @@ struct GodState {
 };
 
 struct FieldState {
-    uint8_t occupied : 1;
-    uint8_t player   : 1;
-    uint8_t god      : 6;
+    bool   occupied : 1;  // 0 if empty, or 1 if occupied
+    Player player   : 1;  // 0 (light) or 1 (dark)
+    Gods   god      : 6;  // between 0 and GOD_COUNT (exclusive)
 };
 
-struct State {
-    GodState gods[2][GOD_COUNT];
-    FieldState fields[FIELD_COUNT];
+class State {
+public:
+    int Hp(Player player, Gods god) const { return gods[player][god].hp; }
+    int Fi(Player player, Gods god) const { return gods[player][god].fi; }
+    StatusEffects Fx(Player player, Gods god) const { return gods[player][god].fx; }
+
+    bool IsEmpty(int i) const       { return !IsOccupied(i); }
+    bool IsOccupied(int i) const    { return fields[i].occupied; }
+    int PlayerAt(int i) const       { return fields[i].occupied ? fields[i].player : -1; }
+    int GodAt(int i) const          { return fields[i].occupied ? fields[i].god : -1; }
+
+    int Winner() const {
+        if (PlayerAt(gate_index[1]) == 0) return 0;
+        if (PlayerAt(gate_index[0]) == 1) return 1;
+        return -1;
+    }
+
+    bool IsOver() const {
+        return Winner() != -1;
+    }
+
+    inline void Summon(Gods god) {
+        PlaceAt(god, gate_index[player]);
+    }
+
+    void PlaceAt(Gods god, int field) {
+        PlaceAt(god, field, player);
+    }
+    void PlaceAt(Gods god, int field, Player player) {
+        assert(!fields[field].occupied);
+        fields[field] = FieldState {
+            .occupied = true,
+            .player   = player,
+            .god      = god,
+        };
+        gods[player][god].fi = field;
+    }
+
+    void RemoveAt(int field) {
+        assert(fields[field].occupied);
+        Player player = fields[field].player;
+        Gods god      = fields[field].god;
+        gods[player][god].fi = field;
+        fields[field] = FieldState {
+            .occupied = true,
+            .player   = player,
+            .god      = god,
+        };
+        // TODO
+    }
+
+    void EndTurn() {
+        player = Other(player);
+    }
 
     static State Initial();
+
+private:
+    GodState    gods[2][GOD_COUNT];
+    FieldState  fields[FIELD_COUNT];
+    Player      player;
 };
 
 #endif  // ndef STATE_H_INCLUDED

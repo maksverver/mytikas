@@ -13,42 +13,47 @@ void PrintState(const State &state) {
             i + 1,
             pantheon[i].name,
             toupper(pantheon[i].ascii_id),
-            state.gods[0][i].hp,
-            FieldName(state.gods[0][i].fi),
+            state.Hp((Player)0, (Gods)i),
+            FieldName(state.Fi((Player)0, (Gods)i)),
             tolower(pantheon[i].ascii_id),
-            state.gods[1][i].hp,
-            FieldName(state.gods[1][i].fi),
+            state.Hp((Player)1, (Gods)i),
+            FieldName(state.Fi((Player)1, (Gods)i)),
             pantheon[i].emoji_utf8);
     }
-    printf("\n");
+    printf("\n   ");
+    for (int c = 0; c < BOARD_SIZE; ++c) {
+        printf(" %c ", 'a' + c);
+    }
+    printf("\n\n");
     for (int r = BOARD_SIZE - 1; r >= 0; --r) {
+        printf(" %c ", '1' + r);
         for (int c = 0; c < BOARD_SIZE; ++c) {
             int i = FieldIndex(r, c);
             if (i == -1) {
                 printf("   ");
-            } else if (!state.fields[i].occupied) {
+            } else if (state.IsEmpty(i)) {
                 printf(" . ");
             } else {
-                printf(" %c ", state.fields[i].player == 0 ?
-                    toupper(pantheon[state.fields[i].god].ascii_id) :
-                    tolower(pantheon[state.fields[i].god].ascii_id));
+                printf(" %c ", state.PlayerAt(i) == 0 ?
+                    toupper(pantheon[state.GodAt(i)].ascii_id) :
+                    tolower(pantheon[state.GodAt(i)].ascii_id));
             }
         }
-        printf("\n");
+        printf(" %c\n", '1' + r);
     }
+    printf("\n    ");
+    for (int c = 0; c < BOARD_SIZE; ++c) {
+        printf(" %c ", 'a' + c);
+    }
+    printf("\n");
 }
 
 }  // namespace
 
 int main() {
     State state = State::Initial();
-    state.fields[0].occupied = true;
-    state.fields[0].player = 0;
-    state.fields[0].god = 0;
-
-    state.fields[40].occupied = true;
-    state.fields[40].player = 1;
-    state.fields[40].god = 11;
-
+    state.Summon(ZEUS);
+    state.EndTurn();
+    state.Summon(HADES);
     PrintState(state);
 }

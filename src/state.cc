@@ -57,37 +57,23 @@ const GodInfo pantheon[GOD_COUNT] = {
 };
 
 State State::Initial() {
-    State state = {
-        .gods = {
-            {
-                {pantheon[ 0].hit, -1, UNAFFECTED},
-                {pantheon[ 1].hit, -1, UNAFFECTED},
-                {pantheon[ 2].hit, -1, UNAFFECTED},
-                {pantheon[ 3].hit, -1, UNAFFECTED},
-                {pantheon[ 4].hit, -1, UNAFFECTED},
-                {pantheon[ 5].hit, -1, UNAFFECTED},
-                {pantheon[ 6].hit, -1, UNAFFECTED},
-                {pantheon[ 7].hit, -1, UNAFFECTED},
-                {pantheon[ 8].hit, -1, UNAFFECTED},
-                {pantheon[ 9].hit, -1, UNAFFECTED},
-                {pantheon[10].hit, -1, UNAFFECTED},
-                {pantheon[11].hit, -1, UNAFFECTED},
-            }, {
-                {pantheon[ 0].hit, -1, UNAFFECTED},
-                {pantheon[ 1].hit, -1, UNAFFECTED},
-                {pantheon[ 2].hit, -1, UNAFFECTED},
-                {pantheon[ 3].hit, -1, UNAFFECTED},
-                {pantheon[ 4].hit, -1, UNAFFECTED},
-                {pantheon[ 5].hit, -1, UNAFFECTED},
-                {pantheon[ 6].hit, -1, UNAFFECTED},
-                {pantheon[ 7].hit, -1, UNAFFECTED},
-                {pantheon[ 8].hit, -1, UNAFFECTED},
-                {pantheon[ 9].hit, -1, UNAFFECTED},
-                {pantheon[10].hit, -1, UNAFFECTED},
-                {pantheon[11].hit, -1, UNAFFECTED},
-            }
-        },
-        .fields = {},
-    };
+    State state;
+    for (int p = 0; p < 2; ++p) {
+        for (int i = 0; i < GOD_COUNT; ++i) {
+            state.gods[p][i] = GodState{
+                .hp = pantheon[i].hit,
+                .fi = -1,
+                .fx = UNAFFECTED,
+            };
+        }
+    }
+    for (int i = 0; i < FIELD_COUNT; ++i) {
+        state.fields[i] = FieldState{
+            .occupied = false,
+            .player = LIGHT,
+            .god = (Gods)0,
+        };
+    }
+    state.player = LIGHT;
     return state;
 }
