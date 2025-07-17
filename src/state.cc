@@ -1,5 +1,33 @@
 #include "state.h"
 
+constexpr Dir knight_dirs[8] = {
+    Dir{ -2, -1},
+    Dir{ -2, +1},
+    Dir{ -1, -2},
+    Dir{ -1, +2},
+    Dir{ +1, -2},
+    Dir{ +1, +2},
+    Dir{ +2, -1},
+    Dir{ +2, +1},
+};
+
+constexpr Dir all_dirs[8] = {
+    // Orthogonal dirs
+    Dir{ -1,  0},
+    Dir{  0, +1},
+    Dir{  0, -1},
+    Dir{ +1,  0},
+    // Diagonal dirs
+    Dir{ -1, -1},
+    Dir{ -1, +1},
+    Dir{ +1, -1},
+    Dir{ +1, +1},
+};
+
+constexpr std::span<const Dir, 4> ortho_dirs{&all_dirs[0], &all_dirs[4]};
+constexpr std::span<const Dir, 4> diag_dirs{&all_dirs[4], &all_dirs[8]};
+constexpr std::span<const Dir, 0> no_dirs;
+
 const int8_t field_index_by_coords[BOARD_SIZE][BOARD_SIZE] = {
     { -1, -1, -1, -1,  0, -1, -1, -1, -1 },
     { -1, -1, -1,  1,  2,  3, -1, -1, -1 },
@@ -40,20 +68,20 @@ const char *field_names[FIELD_COUNT] = {
 };
 
 // Must keep this in sync with the Gods enum.
-const GodInfo pantheon[GOD_COUNT] = {
-    // name        id  emoji  hit mov dmg rng
-    {"Zeus",       'Z', "⚡️", 10,   1, 10,  3},
-    {"Hephaestus", 'H', "🔨",  9,   2,  7,  2},
-    {"hEra",       'E', "👸",  8,   2,  5,  2},
-    {"Poseidon",   'P', "🔱",  7,   3,  4,  0},
-    {"apOllo",     'O', "🏹",  6,   2,  2,  3},
-    {"Aphrodite",  'A', "🌹",  6,   3,  6,  1},
-    {"aRes",       'R', "⚔️",  5,   3,  5,  3},
-    {"herMes",     'M', "🪽",  5,   3,  3,  2},
-    {"Dionysos",   'D', "🍇",  4,   1,  4,  0},
-    {"arTemis",    'T', "🦌",  4,   2,  4,  2},
-    {"hadeS",      'S', "🐕",  3,   3,  3,  1},
-    {"atheNa",     'N', "🛡️",  3,   1,  3,  3},
+constexpr GodInfo pantheon[GOD_COUNT] = {
+    // name        id  emoji  hit mov dmg rng  mov_direct atk_direct mov_dirs     atk_dirs
+    {"Zeus",       'Z', "⚡️", 10,   1, 10,  3, false,     true,      all_dirs,    ortho_dirs },
+    {"Hephaestus", 'H', "🔨",  9,   2,  7,  2, false,     true,      ortho_dirs,  ortho_dirs },
+    {"hEra",       'E', "👸",  8,   2,  5,  2, false,     false,     diag_dirs,   diag_dirs  },
+    {"Poseidon",   'P', "🔱",  7,   3,  4,  0, false,     false,     ortho_dirs,  no_dirs    },
+    {"apOllo",     'O', "🏹",  6,   2,  2,  3, false,     false,     all_dirs,    all_dirs   },
+    {"Aphrodite",  'A', "🌹",  6,   3,  6,  1, false,     false,     all_dirs,    all_dirs   },
+    {"aRes",       'R', "⚔️",  5,   3,  5,  3, true,      true,      all_dirs,    all_dirs   },
+    {"herMes",     'M', "🪽",  5,   3,  3,  2, false,     true,      all_dirs,    all_dirs   },
+    {"Dionysos",   'D', "🍇",  4,   1,  4,  0, false,     false,     knight_dirs, no_dirs    },
+    {"arTemis",    'T', "🦌",  4,   2,  4,  2, false,     true,      all_dirs,    diag_dirs  },
+    {"hadeS",      'S', "🐕",  3,   3,  3,  1, true,      false,     all_dirs,    no_dirs    },
+    {"atheNa",     'N', "🛡️",  3,   1,  3,  3, false,     true,      all_dirs,    all_dirs   },
 };
 
 State State::Initial() {
@@ -68,11 +96,7 @@ State State::Initial() {
         }
     }
     for (int i = 0; i < FIELD_COUNT; ++i) {
-        state.fields[i] = FieldState{
-            .occupied = false,
-            .player = LIGHT,
-            .god = (Gods)0,
-        };
+        state.fields[i] = FieldState::UNOCCUPIED;
     }
     state.player = LIGHT;
     return state;

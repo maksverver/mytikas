@@ -4,7 +4,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
-#include <utility>
+#include <span>
 
 //
 //       a  b  c  d  e  f  g  h  i
@@ -32,34 +32,47 @@
 constexpr int FIELD_COUNT = 41;
 constexpr int BOARD_SIZE  =  9;
 
+using field_t = int8_t;
+
 extern const int8_t field_index_by_coords[BOARD_SIZE][BOARD_SIZE];
 extern const uint8_t coords_by_field_index[FIELD_COUNT];
 extern const char *field_names[FIELD_COUNT];
 
-constexpr int gate_index[2] = {0, FIELD_COUNT - 1};
+constexpr field_t gate_index[2] = {0, FIELD_COUNT - 1};
 
 inline bool OnBoard(int r, int c) {
     return abs(r - 4) + abs(c - 4) <= 4;
 }
 
-inline int FieldIndex(int r, int c) {
+inline field_t FieldIndex(int r, int c) {
     return
         0 <= r && r < BOARD_SIZE &&
         0 <= c && c < BOARD_SIZE
             ? field_index_by_coords[r][c] : -1;
 }
 
-inline const char *FieldName(int i) {
+inline const char *FieldName(field_t i) {
     return 0 <= i && i < FIELD_COUNT ? field_names[i] : "-";
 }
 
-inline std::pair<int, int> FieldCoords(int i) {
+struct Coords {
+    int8_t r;
+    int8_t c;
+};
+
+inline Coords FieldCoords(field_t i) {
     assert(0 <= i && i < FIELD_COUNT);
     uint8_t v = coords_by_field_index[i];
-    return {v>>4, v&15};
+    int8_t r = v>>4, c = v&15;
+    return Coords{.r=r, .c=c};
 }
 
-enum Gods : uint8_t {
+struct Dir {
+    int8_t dr;
+    int8_t dc;
+};
+
+enum God : uint8_t {
     ZEUS,        //  0
     HEPHAESTUS,  //  1
     HERA,        //  2
@@ -85,6 +98,10 @@ struct GodInfo {
     uint8_t mov;  // movement speed
     uint8_t dmg;  // attack damage (base)
     uint8_t rng;  // attack range
+    bool mov_direct;
+    bool atk_direct;
+    std::span<const Dir> mov_dirs;
+    std::span<const Dir> atk_dirs;
 };
 
 extern const GodInfo pantheon[GOD_COUNT];
@@ -102,6 +119,11 @@ enum Player : uint8_t {
     DARK  = 1,
 };
 
+inline Player AsPlayer(int i) {
+    assert(0 <= i && i < 2);
+    return (Player) i;
+}
+
 inline Player Other(Player p) { return (Player)(1 - p); }
 
 struct GodState {
@@ -113,58 +135,79 @@ struct GodState {
 struct FieldState {
     bool   occupied : 1;  // 0 if empty, or 1 if occupied
     Player player   : 1;  // 0 (light) or 1 (dark)
-    Gods   god      : 6;  // between 0 and GOD_COUNT (exclusive)
+    God    god      : 6;  // between 0 and GOD_COUNT (exclusive)
+
+    static const FieldState UNOCCUPIED;
+};
+
+constexpr FieldState FieldState::UNOCCUPIED = FieldState{
+    .occupied = false,
+    .player = LIGHT,
+    .god = (God)0,
 };
 
 class State {
 public:
-    int Hp(Player player, Gods god) const { return gods[player][god].hp; }
-    int Fi(Player player, Gods god) const { return gods[player][god].fi; }
-    StatusEffects Fx(Player player, Gods god) const { return gods[player][god].fx; }
+    int hp(Player player, God god) const { return gods[player][god].hp; }
+    int fi(Player player, God god) const { return gods[player][god].fi; }
+    StatusEffects fx(Player player, God god) const { return gods[player][god].fx; }
 
-    bool IsEmpty(int i) const       { return !IsOccupied(i); }
-    bool IsOccupied(int i) const    { return fields[i].occupied; }
-    int PlayerAt(int i) const       { return fields[i].occupied ? fields[i].player : -1; }
-    int GodAt(int i) const          { return fields[i].occupied ? fields[i].god : -1; }
+    Player NextPlayer() const { return player; }
+
+    bool IsEmpty(field_t i) const       { return !IsOccupied(i); }
+    bool IsOccupied(field_t i) const    { return fields[i].occupied; }
+    int PlayerAt(field_t i) const       { return fields[i].occupied ? fields[i].player : -1; }
+    God GodAt(field_t i) const          { return fields[i].occupied ? fields[i].god : GOD_COUNT; }
+
+    bool IsDead(Player player, God god) const { return gods[player][god].hp == 0; }
+    bool IsDeployed(Player player, God god) const { return gods[player][god].fi != -1; }
+    bool IsSummonable(Player player, God god) const { return !IsDead(player, god) && !IsDeployed(player, god); }
 
     int Winner() const {
         if (PlayerAt(gate_index[1]) == 0) return 0;
         if (PlayerAt(gate_index[0]) == 1) return 1;
         return -1;
     }
+    bool IsOver() const { return Winner() != -1; }
 
-    bool IsOver() const {
-        return Winner() != -1;
-    }
-
-    inline void Summon(Gods god) {
-        PlaceAt(god, gate_index[player]);
-    }
-
-    void PlaceAt(Gods god, int field) {
-        PlaceAt(god, field, player);
-    }
-    void PlaceAt(Gods god, int field, Player player) {
-        assert(!fields[field].occupied);
-        fields[field] = FieldState {
-            .occupied = true,
-            .player   = player,
-            .god      = god,
-        };
-        gods[player][god].fi = field;
-    }
-
-    void RemoveAt(int field) {
+    uint8_t DealDamage(field_t field, int damage) {
         assert(fields[field].occupied);
         Player player = fields[field].player;
-        Gods god      = fields[field].god;
-        gods[player][god].fi = field;
+        God god = fields[field].god;
+        auto &hp = gods[player][god].hp;
+        if (hp > damage) {
+            hp -= damage;
+        } else {
+            hp = 0;
+            gods[player][god].fi = -1;
+            fields[field] = FieldState::UNOCCUPIED;
+        }
+        return hp;
+    }
+
+    void Summon(God god) {
+        Place(player, god, gate_index[player]);
+    }
+
+    void Place(Player player, God god, field_t field) {
+        assert(!fields[field].occupied);
+        assert(gods[player][god].fi == -1);
         fields[field] = FieldState {
             .occupied = true,
             .player   = player,
             .god      = god,
         };
-        // TODO
+        gods[player][god].fi = field;
+    }
+
+    void Move(Player player, God god, field_t dst) {
+        assert(!fields[dst].occupied);
+        int8_t &src = gods[player][god].fi;
+        assert(src != -1);
+        fields[dst] = fields[src];
+        fields[src] = FieldState::UNOCCUPIED;
+        src = dst;
+        // TODO: update status effects
     }
 
     void EndTurn() {

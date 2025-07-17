@@ -1,9 +1,43 @@
 #include "state.h"
+#include "moves.h"
+#include "random.h"
 
+#include <cassert>
 #include <cstdio>
 #include <cctype>
+#include <random>
 
 namespace {
+
+void PrintTurn(const Turn &turn) {
+    if (turn.naction == 0) {
+        printf("Pass");
+    }
+    for (int i = 0; i < turn.naction; ++i) {
+        if (i > 0) printf(", ");
+        const Action &action = turn.actions[i];
+        if (action.IsSummon()) {
+            printf("%c@%s", pantheon[action.god].ascii_id, field_names[action.field]);
+        } else if (action.IsMove()) {
+            printf("%c%s-%s", pantheon[action.god].ascii_id, field_names[action.field], field_names[action.move_to]);
+        } else if (action.IsAttack()) {
+            printf("%c%sx%s", pantheon[action.god].ascii_id, field_names[action.field], field_names[action.attack_at]);
+        } else {
+            assert(false);
+        }
+        if (action.special != -1) {
+            printf("!%s", field_names[action.special]);
+        }
+    }
+    printf("\n");
+}
+
+void PrintTurns(const std::vector<Turn> &turns) {
+    for (size_t i = 0; i < turns.size(); ++i) {
+        printf("%4d. ", (int)i + 1);
+        PrintTurn(turns[i]);
+    }
+}
 
 void PrintState(const State &state) {
     printf("     God                 Player 1    Player 2\n");
@@ -13,11 +47,11 @@ void PrintState(const State &state) {
             i + 1,
             pantheon[i].name,
             toupper(pantheon[i].ascii_id),
-            state.Hp((Player)0, (Gods)i),
-            FieldName(state.Fi((Player)0, (Gods)i)),
+            state.hp((Player)0, (God)i),
+            FieldName(state.fi((Player)0, (God)i)),
             tolower(pantheon[i].ascii_id),
-            state.Hp((Player)1, (Gods)i),
-            FieldName(state.Fi((Player)1, (Gods)i)),
+            state.hp((Player)1, (God)i),
+            FieldName(state.fi((Player)1, (God)i)),
             pantheon[i].emoji_utf8);
     }
     printf("\n   ");
@@ -45,15 +79,30 @@ void PrintState(const State &state) {
     for (int c = 0; c < BOARD_SIZE; ++c) {
         printf(" %c ", 'a' + c);
     }
-    printf("\n");
+    printf("\n\n%s to move\n", state.NextPlayer() == LIGHT ? "Light" : "Dark");
 }
 
 }  // namespace
 
 int main() {
+    std::mt19937_64 rng = InitializeRng();
     State state = State::Initial();
-    state.Summon(ZEUS);
-    state.EndTurn();
-    state.Summon(HADES);
-    PrintState(state);
+    while (!state.IsOver()) {
+        PrintState(state);
+
+        std::vector<Turn> turns = GenerateTurns(state);
+        printf("\n");
+        PrintTurns(turns);
+        printf("\n");
+
+        assert(!turns.empty());
+
+        std::uniform_int_distribution<> dist(0, turns.size() - 1);
+        size_t i = dist(rng);
+
+        printf("Randomly selected: %d. ", (int)i + 1);
+        PrintTurn(turns[i]);
+        ExecuteTurn(state, turns[i]);
+        printf("\n");
+    }
 }
