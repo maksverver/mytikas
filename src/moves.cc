@@ -1,7 +1,5 @@
 #include "moves.h"
 
-#include <stdio.h>  // TEMP
-
 namespace {
 
 void GenerateSummons(
@@ -19,7 +17,7 @@ void GenerateMovesOne(
     int max_dist = pantheon[god].mov;
     std::span<const Dir> dirs = pantheon[god].mov_dirs;
 
-    auto add_move = [&](field_t move_to) {
+    auto add_action = [&](field_t move_to) {
         Action action{
             .god       = god,
             .field     = field,
@@ -37,6 +35,9 @@ void GenerateMovesOne(
         --turn.naction;
     };
 
+    // The logic below is similar to GenerateAttacksOne(), defined below.
+    // Try to keep the two in sync.
+
     if (pantheon[god].mov_direct) {
         // Direct moves only: scan each direction until we reach the end of the
         // board or an occupied field.
@@ -48,7 +49,7 @@ void GenerateMovesOne(
                 c += dc;
                 field_t i = FieldIndex(r, c);
                 if (i == -1 || state.IsOccupied(i)) break;
-                add_move(i);
+                add_action(i);
             }
         }
     } else {
@@ -72,7 +73,7 @@ void GenerateMovesOne(
                     int8_t cc = c + dc;
                     field_t i = FieldIndex(rr, cc);
                     if (i == -1 || state.IsOccupied(i) || seen[i]) continue;
-                    add_move(i);
+                    add_action(i);
                     seen[i] = true;
                     todo[end++] = Coords{rr, cc};
                 }
@@ -101,7 +102,75 @@ void GenerateAttacksOne(
     const State &state, std::vector<Turn> &turns, Turn &turn,
     field_t field
 ) {
-    // TODO
+    God god = state.GodAt(field);
+    assert(god < GOD_COUNT);
+
+    int max_dist = pantheon[god].rng;
+    std::span<const Dir> dirs = pantheon[god].atk_dirs;
+
+    auto add_action = [&](field_t attack_at) {
+        Action action{
+            .god       = god,
+            .field     = field,
+            .move_to   = -1,
+            .attack_at = attack_at,
+            .special   = -1,  // TODO
+        };
+        turn.actions[turn.naction++] = action;
+        turns.push_back(turn);
+        --turn.naction;
+    };
+
+    // The logic below is similar to GenerateMovesOne(), defined above.
+    // Try to keep the two in sync.
+
+    const Player opponent = Other(state.NextPlayer());
+
+    if (pantheon[god].atk_direct) {
+        // Direct attacks only: scan each direction until we reach the end of
+        // the board or an occupied field.
+        Coords coords = FieldCoords(field);
+        for (auto [dr, dc] : dirs) {
+            auto [r, c] = coords;
+            for (int dist = 1; dist <= max_dist; ++dist) {
+                r += dr;
+                c += dc;
+                field_t i = FieldIndex(r, c);
+                if (i == -1) break;
+                int pl = state.PlayerAt(i);
+                if (pl == -1) continue;
+                if (pl != opponent) break;
+                add_action(i);
+            }
+        }
+    } else {
+        // Indirect attacks: breadth first search from the start.
+        Coords todo[FIELD_COUNT];
+        bool seen[FIELD_COUNT] = {};
+        seen[field] = true;
+        todo[0] = FieldCoords(field);
+        int pos = 0, end = 1;
+        for (int dist = 1; dist <= max_dist; ++dist) {
+            int cur_end = end;
+            while (pos < cur_end) {
+                auto [r, c] = todo[pos++];
+                for (auto [dr, dc] : dirs) {
+                    int8_t rr = r + dr;
+                    int8_t cc = c + dc;
+                    field_t i = FieldIndex(rr, cc);
+                    if (i == -1 || seen[i]) continue;
+                    seen[i] = true;
+                    int pl = state.PlayerAt(i);
+                    if (pl == -1) {
+                        todo[end++] = Coords{rr, cc};
+                    } else if (pl == opponent) {
+                        add_action(i);
+                    }
+                }
+            }
+        }
+    }
+
     // TODO: rule 3: can move again if killing an enemy at the final gate.
 }
 
@@ -129,8 +198,7 @@ void GenerateSummons(
     if (state.IsOccupied(gate)) return;
 
     for (int g = 0; g != GOD_COUNT; ++g) {
-        int field = state.fi(player, (God) g);
-        if (field == -1) {
+        if (state.IsSummonable(player, (God) g)) {
             Action action{
                 .god       = (God) g,
                 .field     = gate,
@@ -175,18 +243,6 @@ std::vector<Turn> GenerateTurns(const State &state) {
     }
     return turns;
 }
-
-// TODO:
-//   1. - (Pass)
-//   2. Move
-//   3. Attack
-//   4. Summon
-//   5. Summon, Move                (special rule 1)
-//   6. Summon, Attack              (special rule 1)
-//   7. Move, Summon                (special rule 2)
-//   8. Move, Summon, Attack        (special rule 2)
-//   9. Attack, Move                (special rule 3)
-//  10. Move, Move                  (special rule 3)
 
 static void DamageAt(State &state, field_t field, Player opponent, int damage) {
     if (state.PlayerAt(field) != opponent) return;
