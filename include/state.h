@@ -4,7 +4,10 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
+#include <optional>
 #include <span>
+#include <string>
+#include <string_view>
 
 //
 //       a  b  c  d  e  f  g  h  i
@@ -90,6 +93,11 @@ enum God : uint8_t {
 
 static_assert(GOD_COUNT == 12);
 
+inline God AsGod(int i) {
+    assert(0 <= i && i < GOD_COUNT);
+    return (God) i;
+}
+
 struct GodInfo {
     char name[16];
     char ascii_id;
@@ -130,6 +138,9 @@ struct GodState {
     uint8_t       hp;  // hit points left
     int8_t        fi;  // field index (or -1 if not yet summoned or dead)
     StatusEffects fx;  // bitmask of status effects
+
+    // Mostly intedend for debugging/testing.
+    auto operator<=>(const GodState &) const = default;
 };
 
 struct FieldState {
@@ -138,6 +149,9 @@ struct FieldState {
     God    god      : 6;  // between 0 and GOD_COUNT (exclusive)
 
     static const FieldState UNOCCUPIED;
+
+    // Mostly intended for debugging/testing.
+    auto operator<=>(const FieldState &) const = default;
 };
 
 constexpr FieldState FieldState::UNOCCUPIED = FieldState{
@@ -148,6 +162,17 @@ constexpr FieldState FieldState::UNOCCUPIED = FieldState{
 
 class State {
 public:
+    // Returns an initialized start state.
+    static State Initial();
+
+    // Decodes the string produced by Encode().
+    static std::optional<State> Decode(std::string_view sv);
+
+    // Encodes the state as a base-64 string. This is not intended to be
+    // portable; it's a just a dump of the internal state so I can save and
+    // restore states easily, and share them for testing purposes.
+    std::string Encode() const;
+
     int hp(Player player, God god) const { return gods[player][god].hp; }
     int fi(Player player, God god) const { return gods[player][god].fi; }
     StatusEffects fx(Player player, God god) const { return gods[player][god].fx; }
@@ -180,6 +205,7 @@ public:
         } else {
             hp = 0;
             gods[player][god].fi = -1;
+            gods[player][god].fx = UNAFFECTED;
             fields[field] = FieldState::UNOCCUPIED;
         }
         return hp;
@@ -214,7 +240,8 @@ public:
         player = Other(player);
     }
 
-    static State Initial();
+    // Mostly intended for debugging/testing.
+    auto operator<=>(const State &) const = default;
 
 private:
     GodState    gods[2][GOD_COUNT];

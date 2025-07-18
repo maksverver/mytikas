@@ -4,6 +4,7 @@
 #include "state.h"
 
 #include <algorithm>
+#include <ostream>
 #include <vector>
 
 // Encodes a single action, which is either moving, attacking or summoning.

@@ -39,6 +39,8 @@ void PrintTurns(const std::vector<Turn> &turns) {
     }
 }
 
+constexpr bool debug_encoding = true;
+
 void PrintState(const State &state) {
     printf("     God                 Player 1    Player 2\n");
     printf("-----------------------  ----------  ----------\n");
@@ -53,6 +55,16 @@ void PrintState(const State &state) {
             state.hp((Player)1, (God)i),
             FieldName(state.fi((Player)1, (God)i)),
             pantheon[i].emoji_utf8);
+    }
+    std::string encoded = state.Encode();
+    printf("%s\n", encoded.c_str());
+    if (debug_encoding) {
+        std::optional<State> decoded = State::Decode(encoded);
+        if (decoded != state) {
+            fprintf(stderr, "encoded: %s\n", encoded.c_str());
+            fprintf(stderr, "decoded: %s\n", decoded ? decoded->Encode().c_str() : "FAILED");
+            abort();
+        }
     }
     printf("\n   ");
     for (int c = 0; c < BOARD_SIZE; ++c) {
@@ -105,4 +117,6 @@ int main() {
         ExecuteTurn(state, turns[i]);
         printf("\n");
     }
+    PrintState(state);
+    printf("Winner: %s\n", state.NextPlayer() ? "light" : "dark");
 }

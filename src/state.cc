@@ -1,5 +1,9 @@
 #include "state.h"
 
+#include <iostream>
+#include <string>
+#include <string_view>
+
 constexpr Dir knight_dirs[8] = {
     Dir{ -2, -1},
     Dir{ -2, +1},
@@ -99,5 +103,70 @@ State State::Initial() {
         state.fields[i] = FieldState::UNOCCUPIED;
     }
     state.player = LIGHT;
+    return state;
+}
+
+constexpr std::string_view base64_digits = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+std::string State::Encode() const {
+    std::string res;
+    res += base64_digits[player];
+    for (int p = 0; p < 2; ++p) {
+        for (int g = 0; g < GOD_COUNT; ++g) {
+            const auto &gs = gods[p][g];
+            res += base64_digits[gs.hp > 0 ? gs.fi + 1 : FIELD_COUNT + 1];
+            if (gs.hp > 0 && gs.fi != -1) {
+                res += base64_digits[gs.hp];
+                res += base64_digits[gs.fx];
+            }
+        }
+    }
+    return res;
+}
+
+constexpr bool debug_decode = true;
+
+std::optional<State> State::Decode(std::string_view sv) {
+    size_t pos = 0;
+    auto read = [&]<class T>(T &t, int lim) -> bool {
+        if (pos >= sv.size()) {
+            if (debug_decode) {
+                std::cerr << "Decode(\"" << sv << "\"): read past end of string\n";
+            }
+            return false;
+        }
+        auto i = base64_digits.find(sv[pos++]);
+        if (i >= lim) {
+            if (debug_decode) {
+                std::cerr
+                    << "Decode(\"" << sv << "\"): base64 value " << i
+                    << " exceeds limit " << lim << " at pos " << pos << "\n";
+            }
+            return false;
+        }
+        t = static_cast<T>(i);
+        return true;
+    };
+    State state = State::Initial();
+    if (!read(state.player, 2)) return {};
+    for (int p = 0; p < 2; ++p) {
+        for (int g = 0; g < GOD_COUNT; ++g) {
+            auto &gs = state.gods[p][g];
+            int8_t fi;
+            if (!read(fi, FIELD_COUNT + 2)) return {};
+            if (fi == FIELD_COUNT + 1) {
+                // Dead
+                gs.hp = 0;
+            } else if (fi == 0) {
+                // Not yet summoned
+            } else {
+                // Alive and in play
+                if (!read(gs.hp, pantheon[g].hit + 1)) return {};
+                if (!read(gs.fx, 16)) return {};
+                state.Place(AsPlayer(p), AsGod(g), fi - 1);
+            }
+        }
+    }
+    if (pos != sv.size()) return {};  // unexpected trailing data
     return state;
 }
