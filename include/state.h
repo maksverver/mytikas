@@ -114,6 +114,9 @@ struct GodInfo {
 
 extern const GodInfo pantheon[GOD_COUNT];
 
+// Returns the god with ascii_id == ch, or GOD_COUNT if none found.
+God GodById(char ch);
+
 enum StatusEffects : uint8_t {
     UNAFFECTED   = 0,
     DAMAGE_BOOST = 1,  // Buff: +1 damage boost from Hephaestus

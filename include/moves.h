@@ -4,7 +4,10 @@
 #include "state.h"
 
 #include <algorithm>
-#include <ostream>
+#include <iostream>
+#include <optional>
+#include <string>
+#include <string_view>
 #include <vector>
 
 // Encodes a single action, which is either moving, attacking or summoning.
@@ -23,16 +26,14 @@
 //  - Hermes: second target
 //  - Hades: target chained
 //
-struct Action {
-    God god;
-    field_t field;          // source field, or gate when summoning
-    field_t move_to;        // -1 if attacking/summoning
-    field_t attack_at;      // -1 if moving/summoning
-    field_t special;        // -1 if not applicable
 
-    bool IsMove() const { return move_to != -1; }
-    bool IsAttack() const { return attack_at != -1; }
-    bool IsSummon() const { return move_to == -1 && attack_at == -1; }
+struct Action {
+    enum Type { SUMMON, MOVE, ATTACK, SPECIAL } type;
+    God god;
+    field_t field;
+
+    static std::optional<Action> FromString(std::string s);
+    std::string ToString() const;
 
     auto operator<=>(const Action&) const = default;
 };
@@ -61,8 +62,13 @@ struct Action {
 // enemy at the opponent's gate.
 //
 struct Turn {
+    static constexpr int MAX_ACTION = 6;
+
     uint8_t naction;
-    Action actions[3];
+    Action actions[MAX_ACTION];
+
+    static std::optional<Turn> FromString(std::string s);
+    std::string ToString() const;
 
     bool operator==(const Turn &t) const {
         return naction == t.naction && std::equal(actions, actions + naction, t.actions);
@@ -73,11 +79,17 @@ struct Turn {
             actions, actions + naction,
             t.actions, t.actions + naction);
     }
-};
+    };
 
 std::vector<Turn> GenerateTurns(const State &state);
 
 void ExecuteAction(State &state, const Action &action);
 void ExecuteTurn(State &state, const Turn &turn);
+
+std::ostream &operator<<(std::ostream &os, const Action &a);
+std::ostream &operator<<(std::ostream &os, const Turn &t);
+
+std::istream &operator>>(std::istream &os, Action &a);
+std::istream &operator>>(std::istream &os, Turn &t);
 
 #endif  // ndef MOVES_H_INCLUDED

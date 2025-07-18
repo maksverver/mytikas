@@ -88,6 +88,12 @@ constexpr GodInfo pantheon[GOD_COUNT] = {
     {"atheNa",     'N', "🛡️",  3,   1,  3,  3, false,     true,      all_dirs,    all_dirs   },
 };
 
+God GodById(char ch) {
+    int i = 0;
+    while (i < GOD_COUNT && pantheon[i].ascii_id != ch) ++i;
+    return static_cast<God>(i);
+}
+
 State State::Initial() {
     State state;
     for (int p = 0; p < 2; ++p) {

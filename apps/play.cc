@@ -9,52 +9,36 @@
 
 namespace {
 
-void PrintTurn(const Turn &turn) {
-    if (turn.naction == 0) {
-        printf("Pass");
-    }
-    for (int i = 0; i < turn.naction; ++i) {
-        if (i > 0) printf(", ");
-        const Action &action = turn.actions[i];
-        if (action.IsSummon()) {
-            printf("%c@%s", pantheon[action.god].ascii_id, field_names[action.field]);
-        } else if (action.IsMove()) {
-            printf("%c%s-%s", pantheon[action.god].ascii_id, field_names[action.field], field_names[action.move_to]);
-        } else if (action.IsAttack()) {
-            printf("%c%sx%s", pantheon[action.god].ascii_id, field_names[action.field], field_names[action.attack_at]);
-        } else {
-            assert(false);
-        }
-        if (action.special != -1) {
-            printf("!%s", field_names[action.special]);
-        }
-    }
-    printf("\n");
-}
+constexpr bool debug_encoding = true;
 
 void PrintTurns(const std::vector<Turn> &turns) {
     for (size_t i = 0; i < turns.size(); ++i) {
         printf("%4d. ", (int)i + 1);
-        PrintTurn(turns[i]);
+        std::cout << turns[i] << '\n';
+
+        if (debug_encoding) {
+            assert(Turn::FromString(turns[i].ToString()) == turns[i]);
+        }
     }
 }
 
-constexpr bool debug_encoding = true;
-
 void PrintState(const State &state) {
-    printf("     God                 Player 1    Player 2\n");
-    printf("-----------------------  ----------  ----------\n");
+    printf("    God           Player 1    Player 2\n");
+    printf("--  ------------  ----------  ----------\n");
     for (int i = 0; i < GOD_COUNT; ++i) {
-        printf("%2d %-20s  %c %2d HP %2s  %c %2d HP %2s  %s \n",
+        printf("%2d  %-12s",
             i + 1,
-            pantheon[i].name,
-            toupper(pantheon[i].ascii_id),
-            state.hp((Player)0, (God)i),
-            FieldName(state.fi((Player)0, (God)i)),
-            tolower(pantheon[i].ascii_id),
-            state.hp((Player)1, (God)i),
-            FieldName(state.fi((Player)1, (God)i)),
-            pantheon[i].emoji_utf8);
+            pantheon[i].name);
+        for (int p = 0; p < 2; ++p) {
+            printf("  %c ", (p == 0 ? toupper : tolower)(pantheon[i].ascii_id));
+            int hp = state.hp((Player)p, (God)i);
+            if (hp == 0) {
+                printf(" -------");
+            } else {
+                printf("%2d HP %2s", hp, FieldName(state.fi((Player)p, (God)i)));
+            }
+        }
+        printf(" %s\n",pantheon[i].emoji_utf8);
     }
     std::string encoded = state.Encode();
     printf("%s\n", encoded.c_str());
@@ -113,7 +97,7 @@ int main() {
         size_t i = dist(rng);
 
         printf("Randomly selected: %d. ", (int)i + 1);
-        PrintTurn(turns[i]);
+        std::cout << turns[i] << '\n';
         ExecuteTurn(state, turns[i]);
         printf("\n");
     }

@@ -1,5 +1,7 @@
 #include "moves.h"
 
+#include <sstream>
+
 namespace {
 
 void GenerateSummons(
@@ -17,13 +19,11 @@ void GenerateMovesOne(
     int max_dist = pantheon[god].mov;
     std::span<const Dir> dirs = pantheon[god].mov_dirs;
 
-    auto add_action = [&](field_t move_to) {
+    auto add_action = [&](field_t field) {
         Action action{
+            .type      = Action::MOVE,
             .god       = god,
             .field     = field,
-            .move_to   = move_to,
-            .attack_at = -1,
-            .special   = -1,  // TODO
         };
         turn.actions[turn.naction++] = action;
         turns.push_back(turn);
@@ -108,13 +108,11 @@ void GenerateAttacksOne(
     int max_dist = pantheon[god].rng;
     std::span<const Dir> dirs = pantheon[god].atk_dirs;
 
-    auto add_action = [&](field_t attack_at) {
+    auto add_action = [&](field_t field) {
         Action action{
+            .type      = Action::ATTACK,
             .god       = god,
             .field     = field,
-            .move_to   = -1,
-            .attack_at = attack_at,
-            .special   = -1,  // TODO
         };
         turn.actions[turn.naction++] = action;
         turns.push_back(turn);
@@ -200,11 +198,9 @@ void GenerateSummons(
     for (int g = 0; g != GOD_COUNT; ++g) {
         if (state.IsSummonable(player, (God) g)) {
             Action action{
-                .god       = (God) g,
+                .type      = Action::SUMMON,
+                .god       = AsGod(g),
                 .field     = gate,
-                .move_to   = -1,
-                .attack_at = -1,
-                .special   = -1,
             };
             turn.actions[turn.naction++] = action;
             turns.push_back(turn);
@@ -253,22 +249,30 @@ void ExecuteAction(State &state, const Action &action) {
     // TODO? check game is not over yet? (should update movegen to match)
     Player player   = state.NextPlayer();
     Player opponent = Other(player);
-    if (action.IsSummon()) {
-        field_t gate = gate_index[player];
-        assert(gate == action.field);
-        assert(state.IsEmpty(gate));
-        assert(state.IsSummonable(player, action.god));
-        state.Place(player, action.god, gate);
-        // TODO: special case heros
-    } else if (action.IsMove()) {
-        assert(state.GodAt(action.field) == action.god);
-        state.Move(player, action.god, action.move_to);
-        // TODO: special case heros
-    } else if (action.IsAttack()) {
-        assert(state.GodAt(action.field) == action.god);
-        DamageAt(state, action.attack_at, opponent, pantheon[action.god].dmg);
-        // TODO: respect invulnerability bits!
-        // TODO: special case heros
+    switch (action.type) {
+        case Action::SUMMON:
+            assert(action.field == gate_index[player]);
+            state.Place(player, action.god, action.field);
+            // TODO: special case heros (Ares, Hades, Athena, etc.)
+            break;
+
+        case Action::MOVE:
+            state.Move(player, action.god, action.field);
+            // TODO: special case heros (Ares, Hades, ...)
+            break;
+
+        case Action::ATTACK:
+            DamageAt(state, action.field, opponent, pantheon[action.god].dmg);
+            // TODO: respect invulnerability bits!
+            // TODO: special case heros
+            break;
+
+        case Action::SPECIAL:
+            // TODO!
+            break;
+
+        default:
+            assert(false);
     }
 }
 
@@ -278,4 +282,87 @@ void ExecuteTurn(State &state, const Turn &turn) {
         ExecuteAction(state, turn.actions[i]);
     }
     state.EndTurn();
+}
+
+std::string Action::ToString() const {
+    std::ostringstream oss;
+    oss << *this;
+    return oss.str();
+}
+
+std::string Turn::ToString() const {
+    std::ostringstream oss;
+    oss << *this;
+    return oss.str();
+}
+
+std::optional<Action> Action::FromString(std::string s) {
+    std::istringstream iss(std::move(s));
+    Action action;
+    if (iss >> action) return action;
+    return {};
+}
+
+std::optional<Turn> Turn::FromString(std::string s) {
+    std::istringstream iss(std::move(s));
+    Turn turn;
+    if (iss >> turn) return turn;
+    return {};
+}
+
+constexpr std::string_view type_chars = "@>!+";
+
+std::ostream &operator<<(std::ostream &os, const Action &a) {
+    return os << pantheon[a.god].ascii_id << type_chars[a.type] << field_names[a.field];
+}
+
+std::ostream &operator<<(std::ostream &os, const Turn &t) {
+    if (t.naction == 0) return os << "x";
+    os << t.actions[0];
+    for (int i = 1; i < t.naction; ++i) os << ',' << t.actions[i];
+    return os;
+}
+
+std::istream &operator>>(std::istream &is, Action &a) {
+    char god_ch, type_ch, col_ch, row_ch;
+    if (is >> god_ch >> type_ch >> col_ch >> row_ch) {
+        God god;
+        std::string_view::size_type type;
+        field_t field;
+        if ( (god = GodById(god_ch)) < GOD_COUNT &&
+             (type = type_chars.find(type_ch)) != std::string_view::npos &&
+             '1' <= row_ch && row_ch <= '9' &&
+             'a' <= col_ch && col_ch <= 'i' &&
+             (field = field_index_by_coords[row_ch - '1'][col_ch - 'a']) != -1 ) {
+            a = Action{
+                .type  = (Action::Type) type,
+                .god   = (God) god,
+                .field = field,
+            };
+        } else {
+            is.setstate(std::ios::failbit);
+        }
+    }
+    return is;
+}
+
+std::istream &operator>>(std::istream &is, Turn &turn) {
+    turn.naction = 0;
+    if (is.peek() == 'x') {
+        is.get();
+    } else {
+        Action a;
+        for (;;) {
+            if (!(is >> a)) break;
+            turn.actions[turn.naction++] = a;
+            if (is.peek() != ',') break;
+            if (turn.naction == Turn::MAX_ACTION) {
+                // Too many actions!
+                is.setstate(std::ios::failbit);
+                break;
+            }
+            is.get();
+        }
+    }
+    return is;
 }
