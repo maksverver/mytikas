@@ -12,11 +12,11 @@ void GenerateMovesOne(
     const State &state, std::vector<Turn> &turns, Turn &turn,
     field_t field, bool may_summon_after
 ) {
-    God god = state.GodAt(field);
+    const God god = state.GodAt(field);
     assert(god < GOD_COUNT);
 
     // TODO: support Hermes movement boost! (make sure Artemis, Dionysus work correctly)
-    int max_dist = pantheon[god].mov;
+    const int max_dist = pantheon[god].mov;
     std::span<const Dir> dirs = pantheon[god].mov_dirs;
 
     auto add_action = [&](field_t field) {
@@ -32,6 +32,8 @@ void GenerateMovesOne(
             ExecuteAction(new_state, action);
             GenerateSummons(state, turns, turn, false);
         }
+        // TODO: if Ares kills an enemy at their gate by moving next to
+        // them, he should get to move again
         --turn.naction;
     };
 
@@ -102,7 +104,8 @@ void GenerateAttacksOne(
     const State &state, std::vector<Turn> &turns, Turn &turn,
     field_t field
 ) {
-    God god = state.GodAt(field);
+    const Player opponent = Other(state.NextPlayer());
+    const God god = state.GodAt(field);
     assert(god < GOD_COUNT);
 
     int max_dist = pantheon[god].rng;
@@ -116,13 +119,20 @@ void GenerateAttacksOne(
         };
         turn.actions[turn.naction++] = action;
         turns.push_back(turn);
+        if (field == gate_index[opponent]) {
+            State new_state = state;
+            ExecuteAction(new_state, action);
+            if (!new_state.IsOccupied(field)) {
+                // Special rule 3: when you kill an enemy on the opponent's
+                // gate, you get an extra move.
+                GenerateMovesAll(new_state, turns, turn, false);
+            }
+        }
         --turn.naction;
     };
 
     // The logic below is similar to GenerateMovesOne(), defined above.
     // Try to keep the two in sync.
-
-    const Player opponent = Other(state.NextPlayer());
 
     if (pantheon[god].atk_direct) {
         // Direct attacks only: scan each direction until we reach the end of
@@ -168,20 +178,15 @@ void GenerateAttacksOne(
             }
         }
     }
-
-    // TODO: rule 3: can move again if killing an enemy at the final gate.
 }
 
 void GenerateAttacksAll(
     const State &state, std::vector<Turn> &turns, Turn &turn
 ) {
     const Player player = state.NextPlayer();
-    const field_t opponent_gate = gate_index[Other(player)];
     for (field_t i = 0; i < FIELD_COUNT; ++i) {
         if (state.PlayerAt(i) == player) {
             GenerateAttacksOne(state, turns, turn, i);
-            // TODO: generate attacks
-            // TODO: allow additional move if killing enemy at opponent's gate
         }
     }
 }
