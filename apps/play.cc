@@ -5,7 +5,10 @@
 #include <cassert>
 #include <cstdio>
 #include <cctype>
+#include <optional>
 #include <random>
+#include <sstream>
+#include <string_view>
 
 namespace {
 
@@ -78,11 +81,58 @@ void PrintState(const State &state) {
     printf("\n\n%s to move\n", state.NextPlayer() == LIGHT ? "Light" : "Dark");
 }
 
+void PrintUsage() {
+    printf(
+        "Usage: play [<state>] <light> <dark>\n"
+        "Where light/dark is either 'user' or 'rand'\n"
+    );
+}
+
+enum PlayerType {
+    PLAY_RAND,
+    PLAY_USER
+};
+
+std::optional<PlayerType> ParsePlayerType(std::string_view sv) {
+    if (sv == "r" || sv == "rand") return PLAY_RAND;
+    if (sv == "u" || sv == "user") return PLAY_USER;
+    return {};
+}
+
+std::mt19937_64 rng = InitializeRng();
+
 }  // namespace
 
-int main() {
-    std::mt19937_64 rng = InitializeRng();
-    State state = State::Initial();
+int main(int argc, char *argv[]) {
+    // Parse command line arugments
+    if (argc < 3 || argc > 4) {
+        PrintUsage();
+        return 1;
+    }
+    PlayerType player_type[2];
+    State state;
+    {
+        int i = 1;
+        if (argc < 4) {
+            state = State::Initial();
+        } else if (auto s = State::Decode(argv[i])) {
+            state = *s;
+            ++i;
+        } else {
+            printf("Failed to decode state: %s\n", argv[i]);
+        }
+        for (int p = 0; p < 2; ++p) {
+            if (auto pt = ParsePlayerType(argv[i])) {
+                player_type[p] = *pt;
+                ++i;
+            } else {
+                printf("Failed to parse player type: %s\n", argv[i]);
+            }
+        }
+        assert(i == argc);
+    }
+
+    // Play game
     while (!state.IsOver()) {
         PrintState(state);
 
@@ -93,14 +143,51 @@ int main() {
 
         assert(!turns.empty());
 
-        std::uniform_int_distribution<> dist(0, turns.size() - 1);
-        size_t i = dist(rng);
+        auto random_turn = [&]() -> const Turn& {
+            std::uniform_int_distribution<> dist(0, turns.size() - 1);
+            size_t i = dist(rng);
+            std::cout << "Randomly selected: " << (i + 1) << ". " << turns[i] << '\n';
+            return turns[i];
+        };
 
-        printf("Randomly selected: %d. ", (int)i + 1);
-        std::cout << turns[i] << '\n';
-        ExecuteTurn(state, turns[i]);
-        printf("\n");
+        std::optional<Turn> turn;
+        if (player_type[state.NextPlayer()] == PLAY_RAND) {
+            turn = random_turn();
+        } else {
+            std::string line;
+            while (!turn) {
+                std::cout << "Move: " << std::flush;
+                if (!std::getline(std::cin, line)) {
+                    std::cerr << "End of input!\n";
+                    break;
+                }
+                if (line == "?") {
+                    turn = random_turn();
+                    break;
+                }
+                for (size_t i = 0; i < turns.size(); ++i) {
+                    std::ostringstream is;
+                    is << i + 1;
+                    std::ostringstream ts;
+                    ts << turns[i];
+                    if (is.str() == line || ts.str() == line) {
+                        turn = turns[i];
+                        break;
+                    }
+                }
+                if (!turn) {
+                    std::cerr << "Move not recognized!\n";
+                }
+            }
+        }
+        if (!turn) {
+            std::cerr << "No move selected! Quitting.\n";
+            break;
+        }
+        ExecuteTurn(state, *turn);
     }
-    PrintState(state);
-    printf("Winner: %s\n", state.NextPlayer() ? "light" : "dark");
+    if (state.IsOver()) {
+        PrintState(state);
+        printf("Winner: %s\n", state.NextPlayer() ? "light" : "dark");
+    }
 }
