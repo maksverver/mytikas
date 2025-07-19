@@ -94,20 +94,28 @@ God GodById(char ch) {
     return static_cast<God>(i);
 }
 
+constexpr bool all_gods[2][GOD_COUNT] = {
+    {true, true, true, true, true, true, true, true, true, true, true, true},
+    {true, true, true, true, true, true, true, true, true, true, true, true},
+};
+static_assert(GOD_COUNT == 12);
+
 State State::Initial() {
+    return InitialWithGods(all_gods);
+}
+
+State State::InitialWithGods(const bool gods[2][GOD_COUNT]) {
     State state;
     for (int p = 0; p < 2; ++p) {
-        for (int i = 0; i < GOD_COUNT; ++i) {
-            state.gods[p][i] = GodState{
-                .hp = pantheon[i].hit,
+        for (int g = 0; g < GOD_COUNT; ++g) {
+            state.gods[p][g] = GodState{
+                .hp = gods[p][g] ? pantheon[g].hit : uint8_t{0},
                 .fi = -1,
                 .fx = UNAFFECTED,
             };
         }
     }
-    for (int i = 0; i < FIELD_COUNT; ++i) {
-        state.fields[i] = FieldState::UNOCCUPIED;
-    }
+    std::fill_n(state.fields, FIELD_COUNT, FieldState::UNOCCUPIED);
     state.player = LIGHT;
     return state;
 }

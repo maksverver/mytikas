@@ -168,6 +168,9 @@ public:
     // Returns an initialized start state.
     static State Initial();
 
+    // Returns a start state with only the given gods (used for testing)
+    static State InitialWithGods(const bool gods[2][GOD_COUNT]);
+
     // Decodes the string produced by Encode().
     static std::optional<State> Decode(std::string_view sv);
 

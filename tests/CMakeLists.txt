@@ -6,5 +6,5 @@ target_include_directories(doctest INTERFACE "${DOCTEST_DIR}")
 target_precompile_headers(doctest INTERFACE "${DOCTEST_DIR}/doctest.h")
 
 add_executable(moves_test moves_test.cc)
-target_link_libraries(moves_test doctest)
+target_link_libraries(moves_test mytikas doctest)
 add_test(NAME moves_test COMMAND moves_test)

@@ -79,7 +79,7 @@ struct Turn {
             actions, actions + naction,
             t.actions, t.actions + naction);
     }
-    };
+};
 
 std::vector<Turn> GenerateTurns(const State &state);
 
