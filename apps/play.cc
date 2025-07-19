@@ -14,13 +14,44 @@ namespace {
 
 constexpr bool debug_encoding = true;
 
-void PrintTurns(const std::vector<Turn> &turns) {
-    for (size_t i = 0; i < turns.size(); ++i) {
-        std::cout << std::setw(4) << i + 1 << ". " << turns[i] << '\n';
+constexpr int wrap_columns = 80;
 
-        if (debug_encoding) {
-            assert(Turn::FromString(turns[i].ToString()) == turns[i]);
+void PrintTurns(const std::vector<Turn> &turns) {
+    if (debug_encoding) {
+        for (Turn turn : turns) {
+            std::string encoded = turn.ToString();
+            std::optional<Turn> decoded = Turn::FromString(encoded);
+            if (decoded != turn) {
+                std::cerr << "encoded: " << encoded << "\ndecoded: ";
+                if (decoded) {
+                    std::cerr << decoded->ToString();
+                } else {
+                    std::cerr << "FAILED";
+                }
+                assert(decoded == turn); // will fail
+            }
         }
+    }
+
+    std::vector<std::string> strings;
+    int max_len = 0;
+    for (size_t i = 0; i < turns.size(); ++i) {
+        std::ostringstream oss;
+        oss << std::setw(4) << i + 1 << ". " << turns[i];
+        strings.push_back(oss.str());
+        max_len = std::max(max_len, (int) strings.back().size());
+    }
+    const size_t space = 2;
+    const size_t columns = std::max(size_t{1}, size_t{wrap_columns} / (max_len + space));
+    const size_t rows = (strings.size() + (columns - 1)) / columns;
+    for (size_t r = 0; r < rows; ++r) {
+        for (size_t c = 0; c < columns; ++c) {
+            size_t i = rows*c + r;
+            if (i >= strings.size()) break;
+            if (c > 0) std::cout << std::setw(space) << ' ';
+            std::cout << std::left << std::setw(max_len) << strings[i];
+        }
+        std::cout << '\n';
     }
 }
 
