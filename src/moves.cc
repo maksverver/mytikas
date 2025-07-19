@@ -146,9 +146,8 @@ void GenerateAttacksOne(
                 field_t i = FieldIndex(r, c);
                 if (i == -1) break;
                 int pl = state.PlayerAt(i);
-                if (pl == -1) continue;
-                if (pl != opponent) break;
-                add_action(i);
+                if (pl == opponent) add_action(i);
+                if (pl != -1) break;
             }
         }
     } else {
