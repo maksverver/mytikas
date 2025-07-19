@@ -3,8 +3,8 @@
 #include "random.h"
 
 #include <cassert>
-#include <cstdio>
 #include <cctype>
+#include <iomanip>
 #include <optional>
 #include <random>
 #include <sstream>
@@ -16,8 +16,7 @@ constexpr bool debug_encoding = true;
 
 void PrintTurns(const std::vector<Turn> &turns) {
     for (size_t i = 0; i < turns.size(); ++i) {
-        printf("%4d. ", (int)i + 1);
-        std::cout << turns[i] << '\n';
+        std::cout << std::setw(4) << i + 1 << ". " << turns[i] << '\n';
 
         if (debug_encoding) {
             assert(Turn::FromString(turns[i].ToString()) == turns[i]);
@@ -26,66 +25,79 @@ void PrintTurns(const std::vector<Turn> &turns) {
 }
 
 void PrintState(const State &state) {
-    printf("    God           Player 1    Player 2\n");
-    printf("--  ------------  ----------  ----------\n");
+    std::cout <<
+        "    God           Player 1    Player 2\n"
+        "--  ------------  ----------  ----------\n";
     for (int i = 0; i < GOD_COUNT; ++i) {
-        printf("%2d  %-12s",
-            i + 1,
-            pantheon[i].name);
+        std::cout
+            << std::setw( 2) << std::right << i + 1 << "  "
+            << std::setw(12) << std::left << pantheon[i].name;
         for (int p = 0; p < 2; ++p) {
-            printf("  %c ", (p == 0 ? toupper : tolower)(pantheon[i].ascii_id));
+            std::cout << "  " << static_cast<char>((p == 0 ? toupper : tolower)(pantheon[i].ascii_id)) << " ";
             int hp = state.hp((Player)p, (God)i);
             if (hp == 0) {
-                printf(" -------");
+                std::cout << "--------";
             } else {
-                printf("%2d HP %2s", hp, FieldName(state.fi((Player)p, (God)i)));
+                std::cout
+                    << std::setw(2) << std::right << hp << " HP "
+                    << std::setw(2) << FieldName(state.fi((Player)p, (God)i));
             }
         }
-        printf(" %s\n",pantheon[i].emoji_utf8);
+        std::cout << ' ' << pantheon[i].emoji_utf8 << '\n';
     }
     std::string encoded = state.Encode();
-    printf("%s\n", encoded.c_str());
+    std::cout << encoded << '\n';
     if (debug_encoding) {
         std::optional<State> decoded = State::Decode(encoded);
         if (decoded != state) {
-            fprintf(stderr, "encoded: %s\n", encoded.c_str());
-            fprintf(stderr, "decoded: %s\n", decoded ? decoded->Encode().c_str() : "FAILED");
+            std::cerr << "encoded: " << encoded << "\ndecoded: ";
+            if (decoded) {
+                std::cerr << decoded->Encode();
+            } else {
+                std::cerr << "FAILED";
+            }
+            std::cerr << std::endl;
             abort();
         }
     }
-    printf("\n   ");
+    std::cout << "\n   ";
     for (int c = 0; c < BOARD_SIZE; ++c) {
-        printf(" %c ", 'a' + c);
+        std::cout << ' ' << static_cast<char>('a' + c) << ' ';
     }
-    printf("\n\n");
+    std::cout << "\n\n";
     for (int r = BOARD_SIZE - 1; r >= 0; --r) {
-        printf(" %c ", '1' + r);
+        std::cout << ' ' << static_cast<char>('1' + r) << ' ';
         for (int c = 0; c < BOARD_SIZE; ++c) {
             int i = FieldIndex(r, c);
             if (i == -1) {
-                printf("   ");
+                std::cout <<  "   ";
             } else if (state.IsEmpty(i)) {
-                printf(" . ");
+                std::cout <<  " . ";
             } else {
-                printf(" %c ", state.PlayerAt(i) == 0 ?
-                    toupper(pantheon[state.GodAt(i)].ascii_id) :
-                    tolower(pantheon[state.GodAt(i)].ascii_id));
+                std::cout
+                    << ' '
+                    << static_cast<char>(state.PlayerAt(i) == 0 ?
+                            toupper(pantheon[state.GodAt(i)].ascii_id) :
+                            tolower(pantheon[state.GodAt(i)].ascii_id))
+                    << ' ';
             }
         }
-        printf(" %c\n", '1' + r);
+        std::cout << ' ' << static_cast<char>('1' + r) << '\n';
     }
-    printf("\n    ");
+    std::cout << "\n    ";
     for (int c = 0; c < BOARD_SIZE; ++c) {
-        printf(" %c ", 'a' + c);
+        std::cout << ' ' << static_cast<char>('a' + c) << ' ';
     }
-    printf("\n\n%s to move\n", state.NextPlayer() == LIGHT ? "Light" : "Dark");
+    std::cout
+        << "\n\n"
+        <<  (state.NextPlayer() == LIGHT ? "Light" : "Dark")
+        << " to move\n";
 }
 
 void PrintUsage() {
-    printf(
+    std::cout <<
         "Usage: play [<state>] <light> <dark>\n"
-        "Where light/dark is either 'user' or 'rand'\n"
-    );
+        "Where light/dark is either 'user' or 'rand'\n";
 }
 
 enum PlayerType {
@@ -119,14 +131,16 @@ int main(int argc, char *argv[]) {
             state = *s;
             ++i;
         } else {
-            printf("Failed to decode state: %s\n", argv[i]);
+            std::cerr << "Failed to decode state: " << argv[i] << '\n';
+            return 1;
         }
         for (int p = 0; p < 2; ++p) {
             if (auto pt = ParsePlayerType(argv[i])) {
                 player_type[p] = *pt;
                 ++i;
             } else {
-                printf("Failed to parse player type: %s\n", argv[i]);
+                std::cerr << "Failed to parse player type: " << argv[i] << '\n';
+                return 1;
             }
         }
         assert(i == argc);
@@ -137,16 +151,16 @@ int main(int argc, char *argv[]) {
         PrintState(state);
 
         std::vector<Turn> turns = GenerateTurns(state);
-        printf("\n");
+        std::cout << '\n';
         PrintTurns(turns);
-        printf("\n");
+        std::cout << '\n';
 
         assert(!turns.empty());
 
         auto random_turn = [&]() -> const Turn& {
             std::uniform_int_distribution<> dist(0, turns.size() - 1);
             size_t i = dist(rng);
-            std::cout << "Randomly selected: " << (i + 1) << ". " << turns[i] << '\n';
+            std::cout << "Randomly selected: " << (i + 1) << ". " << turns[i] << "\n\n";
             return turns[i];
         };
 
@@ -188,6 +202,9 @@ int main(int argc, char *argv[]) {
     }
     if (state.IsOver()) {
         PrintState(state);
-        printf("Winner: %s\n", state.NextPlayer() ? "light" : "dark");
+        std::cout
+            << "Winner: "
+            << (state.NextPlayer() ? "light" : "dark")
+            << '\n';
     }
 }
