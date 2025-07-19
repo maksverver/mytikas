@@ -191,30 +191,29 @@ TEST_CASE("zeus attacks") {
     TestAttack(LIGHT, ZEUS, {APOLLO, POSEIDON},
             "     .     "
             "    ...    "
-            "   ..m..   "
+            "   .....   "
             "  ..do...  "
             " a...Z..p. "
             "  .......  "
-            "   .....   "
+            "   ...m.   "
             "    ...    "
             "     .     "
     );
 }
 
-TEST_CASE("zeus special" * doctest::should_fail()) {
+TEST_CASE("zeus special") {
     TestAttack(LIGHT, ZEUS, {POSEIDON, APOLLO, DIONYSOS, ATHENA, HERA},
             "     .     "
             "    ...    "
             "   .....   "
             "  .......  "
-            " adopZAe.. "
+            " adopZAenm "
             "  .......  "
             "   .....   "
             "    ...    "
             "     .     "
     );
 }
-
 
 TEST_CASE("hephaestus moves") {
     TestMovement(LIGHT, HEPHAESTUS,
@@ -268,7 +267,6 @@ TEST_CASE("hephaestus attacks") {
     );
 }
 
-// TODO: zeus special!
 // TODO: hephaestus special!
 
 // TODO: special rule 1

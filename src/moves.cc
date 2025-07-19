@@ -147,7 +147,12 @@ void GenerateAttacksOne(
                 if (i == -1) break;
                 int pl = state.PlayerAt(i);
                 if (pl == opponent) add_action(i);
-                if (pl != -1) break;
+
+                if (god == ZEUS) {
+                    // Zeus' special attack can pass over enemies and allies
+                } else {
+                    if (pl != -1) break;
+                }
             }
         }
     } else {
