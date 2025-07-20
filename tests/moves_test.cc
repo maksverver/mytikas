@@ -52,6 +52,13 @@ std::optional<Turn> FindTurn(const State &state, std::string_view sv) {
     return {};
 }
 
+void ExecuteTurn(State &state, std::string_view sv) {
+    ASSERT_THAT(TurnStrings(state), Contains(sv));
+    auto turn = FindTurn(state, sv);
+    ASSERT_TRUE(turn);
+    ExecuteTurn(state, *turn);
+}
+
 std::vector<field_t> MoveDestinations(const State &state, God god) {
     std::vector<field_t> res;
     for (const Turn &turn : GenerateTurns(state)) {
@@ -404,18 +411,27 @@ TEST(Hephaestus, Special) {
     State state = BoardTemplate(
             "     .     "
             "    ...    "
-            "   ..a..   "
+            "   ..z..   "
             "  .......  "
-            " ...HR.... "
+            " ..H.N.... "
             "  .......  "
             "   .....   "
             "    ...    "
             "     .     "
         ).ToState(LIGHT);
-    std::optional<Turn> turn = FindTurn(state, "R!e7");
-    ASSERT_TRUE(turn);
-    ExecuteTurn(state, *turn);
-    EXPECT_EQ(state.hp(DARK, APHRODITE), 0);
+
+    EXPECT_EQ(state.hp(DARK, ZEUS), 10);
+
+    ExecuteTurn(state, "N!e7");
+
+    EXPECT_EQ(state.hp(DARK, ZEUS), 7);  // -3
+
+    ExecuteTurn(state, "Z>e8");
+    ExecuteTurn(state, "H>d5");
+    ExecuteTurn(state, "Z>e7");
+    ExecuteTurn(state, "N!e7");
+
+    EXPECT_EQ(state.hp(DARK, ZEUS), 3);  // -4
 }
 
 // TODO: hera, poseidon, apollo, aphrodite, ares, hermes, dionysus, artemis, hades, athena
