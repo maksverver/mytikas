@@ -73,19 +73,19 @@ const char *field_names[FIELD_COUNT] = {
 
 // Must keep this in sync with the Gods enum.
 constexpr GodInfo pantheon[GOD_COUNT] = {
-    // name        id  emoji  hit mov dmg rng  mov_direct atk_direct mov_dirs     atk_dirs
-    {"Zeus",       'Z', "⚡️", 10,   1, 10,  3, false,     true,      all_dirs,    ortho_dirs },
-    {"Hephaestus", 'H', "🔨",  9,   2,  7,  2, false,     true,      ortho_dirs,  ortho_dirs },
-    {"hEra",       'E', "👸",  8,   2,  5,  2, false,     false,     diag_dirs,   diag_dirs  },
-    {"Poseidon",   'P', "🔱",  7,   3,  4,  0, false,     false,     ortho_dirs,  no_dirs    },
-    {"apOllo",     'O', "🏹",  6,   2,  2,  3, false,     false,     all_dirs,    all_dirs   },
-    {"Aphrodite",  'A', "🌹",  6,   3,  6,  1, false,     false,     all_dirs,    all_dirs   },
-    {"aRes",       'R', "⚔️",  5,   3,  5,  3, true,      true,      all_dirs,    all_dirs   },
-    {"herMes",     'M', "🪽",  5,   3,  3,  2, false,     true,      all_dirs,    all_dirs   },
-    {"Dionysos",   'D', "🍇",  4,   1,  4,  0, false,     false,     knight_dirs, no_dirs    },
-    {"arTemis",    'T', "🦌",  4,   2,  4,  2, false,     true,      all_dirs,    diag_dirs  },
-    {"hadeS",      'S', "🐕",  3,   3,  3,  1, true,      false,     all_dirs,    no_dirs    },
-    {"atheNa",     'N', "🛡️",  3,   1,  3,  3, false,     true,      all_dirs,    all_dirs   },
+    // name        id  emoji  hit mov dmg rng  mov_direct atk_direct mov_dirs     atk_dirs     aura
+    {"Zeus",       'Z', "⚡️", 10,   1, 10,  3, false,     true,      all_dirs,    ortho_dirs,  UNAFFECTED   },
+    {"Hephaestus", 'H', "🔨",  9,   2,  7,  2, false,     true,      ortho_dirs,  ortho_dirs,  DAMAGE_BOOST },
+    {"hEra",       'E', "👸",  8,   2,  5,  2, false,     false,     diag_dirs,   diag_dirs,   UNAFFECTED   },
+    {"Poseidon",   'P', "🔱",  7,   3,  4,  0, false,     false,     ortho_dirs,  no_dirs,     UNAFFECTED   },
+    {"apOllo",     'O', "🏹",  6,   2,  2,  3, false,     false,     all_dirs,    all_dirs,    UNAFFECTED   },
+    {"Aphrodite",  'A', "🌹",  6,   3,  6,  1, false,     false,     all_dirs,    all_dirs,    UNAFFECTED   },
+    {"aRes",       'R', "⚔️",  5,   3,  5,  3, true,      true,      all_dirs,    all_dirs,    UNAFFECTED   },
+    {"herMes",     'M', "🪽",  5,   3,  3,  2, false,     true,      all_dirs,    all_dirs,    SPEED_BOOST  },
+    {"Dionysos",   'D', "🍇",  4,   1,  4,  0, false,     false,     knight_dirs, no_dirs,     UNAFFECTED   },
+    {"arTemis",    'T', "🦌",  4,   2,  4,  2, false,     true,      all_dirs,    diag_dirs,   UNAFFECTED   },
+    {"hadeS",      'S', "🐕",  3,   3,  3,  1, true,      false,     all_dirs,    no_dirs,     UNAFFECTED   },
+    {"atheNa",     'N', "🛡️",  3,   1,  3,  3, false,     true,      all_dirs,    all_dirs,    SHIELDED     },
 };
 
 God GodById(char ch) {
@@ -130,8 +130,9 @@ std::string State::Encode() const {
             const auto &gs = gods[p][g];
             res += base64_digits[gs.hp > 0 ? gs.fi + 1 : FIELD_COUNT + 1];
             if (gs.hp > 0 && gs.fi != -1) {
-                res += base64_digits[gs.hp];
-                res += base64_digits[gs.fx];
+                // Status effects except for CHAINED can be inferred from
+                // adjacent characters, so we only encode CHAINED:
+                res += base64_digits[gs.hp | ((gs.fx & CHAINED) ? 0x10 : 0)];
             }
         }
     }
@@ -143,6 +144,7 @@ constexpr bool debug_decode = true;
 std::optional<State> State::Decode(std::string_view sv) {
     size_t pos = 0;
     auto read = [&]<class T>(T &t, int lim) -> bool {
+        assert(0 < lim && lim <= 64);
         if (pos >= sv.size()) {
             if (debug_decode) {
                 std::cerr << "Decode(\"" << sv << "\"): read past end of string\n";
@@ -175,12 +177,61 @@ std::optional<State> State::Decode(std::string_view sv) {
                 // Not yet summoned
             } else {
                 // Alive and in play
-                if (!read(gs.hp, pantheon[g].hit + 1)) return {};
-                if (!read(gs.fx, 16)) return {};
+                int hpfx;
+                if (!read(hpfx, (pantheon[g].hit + 1)*2)) return {};
+                gs.hp = hpfx & 0xf;
+                gs.fx = (hpfx & 0x10) ? CHAINED : UNAFFECTED;
                 state.Place(AsPlayer(p), AsGod(g), fi - 1);
+                // TODO: apply status effects by Hermes, Hepahestus, Athena
             }
         }
     }
     if (pos != sv.size()) return {};  // unexpected trailing data
     return state;
+}
+
+void State::Place(Player player, God god, field_t field) {
+    assert(!fields[field].occupied);
+    assert(gods[player][god].fi == -1);
+    fields[field] = FieldState {
+        .occupied = true,
+        .player   = player,
+        .god      = god,
+    };
+    gods[player][god].fi = field;
+    // TODO: add aura effects
+}
+
+void State::Kill(Player player, God god, field_t field) {
+    gods[player][god] = GodState{
+        .hp =  0,
+        .fi = -1,
+        .fx = UNAFFECTED,
+    };
+    fields[field] = FieldState::UNOCCUPIED;
+    // TODO: remove aura effects
+    // TODO: if Hades is removed, remove chained effects
+}
+
+void State::Move(Player player, God god, field_t dst) {
+    assert(!fields[dst].occupied);
+    int8_t &src = gods[player][god].fi;
+    assert(src != -1);
+    fields[dst] = fields[src];
+    fields[src] = FieldState::UNOCCUPIED;
+    src = dst;
+    // TODO: update status effects
+}
+
+uint8_t State::DealDamage(field_t field, int damage) {
+    assert(fields[field].occupied);
+    Player player = fields[field].player;
+    God god = fields[field].god;
+    auto &hp = gods[player][god].hp;
+    if (hp > damage) {
+        hp -= damage;
+    } else {
+        Kill(player, god, field);
+    }
+    return hp;
 }

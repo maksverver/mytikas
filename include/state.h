@@ -9,6 +9,18 @@
 #include <string>
 #include <string_view>
 
+enum Player : uint8_t {
+    LIGHT = 0,
+    DARK  = 1,
+};
+
+inline Player AsPlayer(int i) {
+    assert(0 <= i && i < 2);
+    return (Player) i;
+}
+
+inline Player Other(Player p) { return (Player)(1 - p); }
+
 //
 //       a  b  c  d  e  f  g  h  i
 //   9              40               9
@@ -98,6 +110,14 @@ inline God AsGod(int i) {
     return (God) i;
 }
 
+enum StatusFx : uint8_t {
+    UNAFFECTED   = 0,
+    CHAINED      = 1,  // Chained by enemy Hades
+    DAMAGE_BOOST = 2,  // Buff: +1 damage boost from Hephaestus
+    SPEED_BOOST  = 4,  // Buff: +1 move from Hermes
+    SHIELDED     = 8,  // Protected by Athena's shield
+};
+
 struct GodInfo {
     char name[16];
     char ascii_id;
@@ -110,6 +130,7 @@ struct GodInfo {
     bool atk_direct;
     std::span<const Dir> mov_dirs;
     std::span<const Dir> atk_dirs;
+    StatusFx aura;  // friendly effect (must be disjoint between heros)
 };
 
 extern const GodInfo pantheon[GOD_COUNT];
@@ -117,30 +138,10 @@ extern const GodInfo pantheon[GOD_COUNT];
 // Returns the god with ascii_id == ch, or GOD_COUNT if none found.
 God GodById(char ch);
 
-enum StatusEffects : uint8_t {
-    UNAFFECTED   = 0,
-    DAMAGE_BOOST = 1,  // Buff: +1 damage boost from Hephaestus
-    SPEED_BOOST  = 2,  // Buff: +1 move from Hermes
-    SHIELDED     = 4,  // Protected by Athena's shield
-    CHAINED      = 8,  // Chained by enemy Hades
-};
-
-enum Player : uint8_t {
-    LIGHT = 0,
-    DARK  = 1,
-};
-
-inline Player AsPlayer(int i) {
-    assert(0 <= i && i < 2);
-    return (Player) i;
-}
-
-inline Player Other(Player p) { return (Player)(1 - p); }
-
 struct GodState {
-    uint8_t       hp;  // hit points left
-    int8_t        fi;  // field index (or -1 if not yet summoned or dead)
-    StatusEffects fx;  // bitmask of status effects
+    uint8_t  hp;  // hit points left
+    int8_t   fi;  // field index (or -1 if not yet summoned or dead)
+    StatusFx fx;  // bitmask of status effects
 
     // Mostly intedend for debugging/testing.
     auto operator<=>(const GodState &) const = default;
@@ -181,7 +182,7 @@ public:
 
     int hp(Player player, God god) const { return gods[player][god].hp; }
     int fi(Player player, God god) const { return gods[player][god].fi; }
-    StatusEffects fx(Player player, God god) const { return gods[player][god].fx; }
+    StatusFx fx(Player player, God god) const { return gods[player][god].fx; }
 
     Player NextPlayer() const { return player; }
 
@@ -201,46 +202,17 @@ public:
     }
     bool IsOver() const { return Winner() != -1; }
 
-    uint8_t DealDamage(field_t field, int damage) {
-        assert(fields[field].occupied);
-        Player player = fields[field].player;
-        God god = fields[field].god;
-        auto &hp = gods[player][god].hp;
-        if (hp > damage) {
-            hp -= damage;
-        } else {
-            hp = 0;
-            gods[player][god].fi = -1;
-            gods[player][god].fx = UNAFFECTED;
-            fields[field] = FieldState::UNOCCUPIED;
-        }
-        return hp;
-    }
-
     void Summon(God god) {
         Place(player, god, gate_index[player]);
     }
 
-    void Place(Player player, God god, field_t field) {
-        assert(!fields[field].occupied);
-        assert(gods[player][god].fi == -1);
-        fields[field] = FieldState {
-            .occupied = true,
-            .player   = player,
-            .god      = god,
-        };
-        gods[player][god].fi = field;
-    }
+    void Place(Player player, God god, field_t field);
 
-    void Move(Player player, God god, field_t dst) {
-        assert(!fields[dst].occupied);
-        int8_t &src = gods[player][god].fi;
-        assert(src != -1);
-        fields[dst] = fields[src];
-        fields[src] = FieldState::UNOCCUPIED;
-        src = dst;
-        // TODO: update status effects
-    }
+    void Kill(Player player, God god, field_t field);
+
+    void Move(Player player, God god, field_t dst);
+
+    uint8_t DealDamage(field_t field, int damage);
 
     void EndTurn() {
         player = Other(player);

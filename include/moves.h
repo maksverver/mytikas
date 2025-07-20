@@ -7,7 +7,6 @@
 #include <iostream>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <vector>
 
 // Encodes a single action, which is either moving, attacking or summoning.
@@ -26,7 +25,6 @@
 //  - Hermes: second target
 //  - Hades: target chained
 //
-
 struct Action {
     enum Type { SUMMON, MOVE, ATTACK, SPECIAL } type;
     God god;
