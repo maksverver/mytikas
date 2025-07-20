@@ -57,21 +57,29 @@ void PrintTurns(const std::vector<Turn> &turns) {
 
 void PrintState(const State &state) {
     std::cout <<
-        "    God           Player 1    Player 2\n"
-        "--  ------------  ----------  ----------\n";
+        "    God           Light side        Dark side\n"
+        "--  ------------  ----------------  ----------------\n";
     for (int i = 0; i < GOD_COUNT; ++i) {
         std::cout
             << std::setw( 2) << std::right << i + 1 << "  "
             << std::setw(12) << std::left << pantheon[i].name;
         for (int p = 0; p < 2; ++p) {
             std::cout << "  " << static_cast<char>((p == 0 ? toupper : tolower)(pantheon[i].ascii_id)) << " ";
-            int hp = state.hp((Player)p, (God)i);
+            int      hp = state.hp(AsPlayer(p), AsGod(i));
+            field_t  fi = state.fi(AsPlayer(p), AsGod(i));
+            StatusFx fx = state.fx(AsPlayer(p), AsGod(i));
             if (hp == 0) {
-                std::cout << "--------";
+                std::cout << "--------------";
+                assert(fi == -1 && fx == UNAFFECTED);
             } else {
                 std::cout
                     << std::setw(2) << std::right << hp << " HP "
-                    << std::setw(2) << FieldName(state.fi((Player)p, (God)i));
+                    << std::setw(2) << FieldName(fi) << ' '
+                    << static_cast<char>((fx & SHIELDED)     ? (p ? tolower : toupper)('N') : ' ')
+                    << static_cast<char>((fx & SPEED_BOOST)  ? (p ? tolower : toupper)('M') : ' ')
+                    << static_cast<char>((fx & DAMAGE_BOOST) ? (p ? tolower : toupper)('H') : ' ')
+                    << static_cast<char>((fx & CHAINED)      ? (p ? toupper : tolower)('S') : ' ')
+                    << ' ';
             }
         }
         std::cout << ' ' << pantheon[i].emoji_utf8 << '\n';

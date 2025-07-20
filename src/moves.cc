@@ -249,9 +249,23 @@ std::vector<Turn> GenerateTurns(const State &state) {
     return turns;
 }
 
+static int GetDamage(const State &state, Player player, God god) {
+    int damage = pantheon[god].dmg;
+
+    // Hephaestus damage boost
+    if (state.fx(player, god) & DAMAGE_BOOST) ++damage;
+
+    return damage;
+}
+
 static void DamageAt(State &state, field_t field, Player opponent, int damage) {
     if (state.PlayerAt(field) != opponent) return;
-    state.DealDamage(field, damage);
+
+    if (state.fx(opponent, state.GodAt(field)) & SHIELDED) {
+        // Athena protects against damage
+    } else {
+        state.DealDamage(opponent, field, damage);
+    }
 }
 
 void ExecuteAction(State &state, const Action &action) {
@@ -271,9 +285,7 @@ void ExecuteAction(State &state, const Action &action) {
             break;
 
         case Action::ATTACK:
-            DamageAt(state, action.field, opponent, pantheon[action.god].dmg);
-            // TODO: respect invulnerability bits!
-            // TODO: special case heros
+            DamageAt(state, action.field, opponent, GetDamage(state, player, action.god));
             break;
 
         case Action::SPECIAL:

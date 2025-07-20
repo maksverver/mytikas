@@ -55,6 +55,47 @@ extern const char *field_names[FIELD_COUNT];
 
 constexpr field_t gate_index[2] = {0, FIELD_COUNT - 1};
 
+extern const field_t neighbors_data[];
+extern const size_t neighbors_index[FIELD_COUNT + 1];
+
+// Returns the neighbors of a field, in sorted order.
+inline std::span<const field_t> Neighbors(field_t field) {
+    return std::span(
+        &neighbors_data[neighbors_index[field    ]],
+        &neighbors_data[neighbors_index[field + 1]]);
+}
+
+// Computes the difference between old and new neighbors when moving
+// from field `src` to `dst`.
+//
+// For each field f that was a neighbor of src but is not a neighbor of dst,
+// excluding dst itself, on_old(f) is called.
+//
+// For each field g that is a neighbor of dst but not a neighbor of src,
+// excluding src itself, on_new(g) is called.
+//
+// (This is used to update status effects when pieces move.)
+template<typename T, typename U>
+void NeighborsDiff(field_t src, field_t dst, T on_old, U on_new) {
+    std::span<const field_t> src_nbs = Neighbors(src);
+    std::span<const field_t> dst_nbs = Neighbors(dst);
+    size_t i = 0, j = 0;
+    for (;;) {
+        field_t f = i < src_nbs.size() ? src_nbs[i] : FIELD_COUNT;
+        field_t g = j < dst_nbs.size() ? dst_nbs[j] : FIELD_COUNT;
+        if (f < g) {
+            if (f != dst) on_old(f);
+            ++i;
+        } else if (f > g) {
+            if (g != src) on_new(g);
+            ++j;
+        } else {  // f == g
+            if (f == FIELD_COUNT) break;
+            ++i, ++j;
+        }
+    }
+}
+
 inline bool OnBoard(int r, int c) {
     return abs(r - 4) + abs(c - 4) <= 4;
 }
@@ -68,6 +109,11 @@ inline field_t FieldIndex(int r, int c) {
 
 inline const char *FieldName(field_t i) {
     return 0 <= i && i < FIELD_COUNT ? field_names[i] : "-";
+}
+
+inline field_t ParseField(std::string_view sv) {
+    if (sv.size() != 2) return -1;
+    return FieldIndex(sv[1] - '1', sv[0] - 'a');
 }
 
 struct Coords {
@@ -208,11 +254,13 @@ public:
 
     void Place(Player player, God god, field_t field);
 
-    void Kill(Player player, God god, field_t field);
+    void Remove(Player player, God god) {
+        Remove(player, god, gods[player][god].fi);
+    }
 
     void Move(Player player, God god, field_t dst);
 
-    uint8_t DealDamage(field_t field, int damage);
+    uint8_t DealDamage(Player player, field_t field, int damage);
 
     void EndTurn() {
         player = Other(player);
@@ -222,6 +270,22 @@ public:
     auto operator<=>(const State &) const = default;
 
 private:
+    void Remove(Player player, God god, field_t field);
+
+    void AddFx(Player player, God god, StatusFx new_fx) {
+        StatusFx &fx = gods[player][god].fx;
+        fx = static_cast<StatusFx>(fx | new_fx);
+    }
+
+    void RemoveFx(Player player, God god, StatusFx old_fx) {
+        StatusFx &fx = gods[player][god].fx;
+        fx = static_cast<StatusFx>(fx & ~old_fx);
+    }
+
+    bool HasFx(Player player, God god, StatusFx fx) const {
+        return (gods[player][god].fx & fx) == fx;
+    }
+
     GodState    gods[2][GOD_COUNT];
     FieldState  fields[FIELD_COUNT];
     Player      player;
