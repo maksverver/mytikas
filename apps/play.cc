@@ -135,7 +135,7 @@ void PrintState(const State &state) {
 
 void PrintUsage() {
     std::cout <<
-        "Usage: play [<state>] <light> <dark>\n"
+        "Usage: play <light> <dark> [<state>]\n"
         "Where light/dark is either 'user' or 'rand'\n";
 }
 
@@ -163,26 +163,28 @@ int main(int argc, char *argv[]) {
     PlayerType player_type[2];
     State state;
     {
-        int i = 1;
-        if (argc < 4) {
-            state = State::Initial();
-        } else if (auto s = State::Decode(argv[i])) {
-            state = *s;
-            ++i;
-        } else {
-            std::cerr << "Failed to decode state: " << argv[i] << '\n';
-            return 1;
-        }
+        int argi = 1;
         for (int p = 0; p < 2; ++p) {
-            if (auto pt = ParsePlayerType(argv[i])) {
+            if (auto pt = ParsePlayerType(argv[argi])) {
                 player_type[p] = *pt;
-                ++i;
+                ++argi;
             } else {
-                std::cerr << "Failed to parse player type: " << argv[i] << '\n';
+                std::cerr << "Failed to parse player type: " << argv[argi] << '\n';
                 return 1;
             }
         }
-        assert(i == argc);
+        if (argi < argc) {
+            if (auto s = State::Decode(argv[argi]); s) {
+                state = *s;
+            } else {
+                std::cerr << "Failed to decode state: " << argv[argi] << '\n';
+                return 1;
+            }
+            ++argi;
+        } else {
+            state = State::Initial();
+        }
+        assert(argi == argc);
     }
 
     // Play game
