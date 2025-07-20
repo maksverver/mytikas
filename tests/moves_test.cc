@@ -163,7 +163,8 @@ void TestAttack(Player player, God god, std::vector<God> expected, const BoardTe
     std::ranges::sort(expected);
     std::ranges::sort(received);
     EXPECT_THAT(received, UnorderedElementsAreArray(expected))
-        << "expected: " << expected << "; received: " << received;
+        << "expected: " << expected << '\n'
+        << "received: " << received;
 }
 
 }  // namespace
@@ -518,4 +519,78 @@ TEST(Hera, Special) {
     EXPECT_EQ(state.hp(LIGHT, HEPHAESTUS), 4);  // 9 hp - 5 dmg
 }
 
-// TODO: hera, poseidon, apollo, aphrodite, ares, hermes, dionysus, artemis, hades, athena
+TEST(Apollo, Moves) {
+    TestMovement(LIGHT, APOLLO,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  .......  "
+            " ......... "
+            "  .......  "
+            "   +++++   "
+            "    +++    "
+            "     O     "
+    );
+
+    TestMovement(LIGHT, APOLLO,
+            "     .     "
+            "    ...    "
+            "   +++++   "
+            "  .+++++.  "
+            " ..++O++.. "
+            "  .+++++.  "
+            "   +++++   "
+            "    ...    "
+            "     .     "
+    );
+
+    TestMovement(LIGHT, APOLLO,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  z+.....  "
+            " O++...... "
+            "  ++.....  "
+            "   +....   "
+            "    ...    "
+            "     .     "
+    );
+}
+
+TEST(Apollo, Attacks) {
+    TestAttack(LIGHT, APOLLO, {DIONYSOS, HERA},
+            "     z     "
+            "    ...    "
+            "   .....   "
+            "  ....H..  "
+            " .eZ.OAm.. "
+            "  ....d..  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    );
+}
+
+// Apollo does +1 damage when attacking directly.
+TEST(Apollo, Special) {
+    State state = State::Initial();
+    state.Place(LIGHT, APOLLO, ParseField("e5"));
+    state.Place(DARK,  ZEUS,   ParseField("c7"));
+
+    ExecuteTurn(state, "O!c7");
+
+    EXPECT_EQ(state.hp(DARK, ZEUS),  7);  // 10 - 3, direct diagonal attack
+
+    ExecuteTurn(state, "Z>c6");
+    ExecuteTurn(state, "O!c6");
+
+    EXPECT_EQ(state.hp(DARK,  ZEUS), 5);  // 7 - 2, indirect attack
+
+    ExecuteTurn(state, "Z>c5");
+    ExecuteTurn(state, "O!c5");
+
+    EXPECT_EQ(state.hp(DARK,  ZEUS), 2);  // 5 - 3, direct horizontal attack
+}
+
+// TODO: poseidon (before apollo)
+// TODO: aphrodite, ares, hermes, dionysus, artemis, hades, athena
