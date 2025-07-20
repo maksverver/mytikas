@@ -1,0 +1,14 @@
+    God           Player 1    Player 2
+--  ------------  ----------  ----------
+ 1  Zeus          Z 10 HP  -  z 10 HP  - ⚡️
+ 2  Hephaestus    H  9 HP  -  h  9 HP  - 🔨
+ 3  hEra          E  8 HP  -  e  8 HP  - 👸
+ 4  Poseidon      P  7 HP  -  p  7 HP  - 🔱
+ 5  apOllo        O  6 HP  -  o  6 HP  - 🏹
+ 6  Aphrodite     A  6 HP  -  a  6 HP  - 🌹
+ 7  aRes          R  5 HP  -  r  5 HP  - ⚔️
+ 8  herMes        M  5 HP  -  m  5 HP  - 🪽
+ 9  Dionysos      D  4 HP  -  d  4 HP  - 🍇
+10  arTemis       T  4 HP  -  t  4 HP  - 🦌
+11  hadeS         S  3 HP  -  s  3 HP  - 🐕
+12  atheNa        N  3 HP  -  n  3 HP  - 🛡️
