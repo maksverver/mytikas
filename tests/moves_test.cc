@@ -162,23 +162,54 @@ void TestAttack(Player player, God god, std::vector<God> expected, const BoardTe
 }  // namespace
 
 TEST(SpecialRule1, Basic) {
-    // If your home gate is occupied, you may move a piece and summon a god afterward,
-    // who may then attack but not move, but may use a special ability.
+    // On the turn that a character is “summoned” onto your Gates Space,
+    // that character can also move or attack on the same turn.
 
     State state = State::Initial();
     state.Place(DARK, ZEUS, ParseField("e2"));
 
     auto turns = TurnStrings(state);
-    EXPECT_THAT(turns, Contains("N@e1,N!e2"));
-    EXPECT_THAT(turns, Contains("N@e1,N!e2"));
 
+    EXPECT_THAT(turns, Contains("N@e1,N!e2"));
+    EXPECT_THAT(turns, Contains("N@e1,N!e2"));
+}
+
+TEST(SpecialRule2, Basic) {
+    // If your home gate is occupied, you may move a piece and summon a god afterward,
+    // who may then attack but not move, but may use a special ability.
+
+    State state = State::Initial();
+    state.Place(DARK, ZEUS, ParseField("e2"));
     state.Place(LIGHT, ZEUS, ParseField("e1"));
-    turns = TurnStrings(state);
+
+    auto turns = TurnStrings(state);
+
     EXPECT_THAT(turns,     Contains("Z>d2,N@e1,N!e2") );
     EXPECT_THAT(turns, Not(Contains("Z>d2,N@e1,N>f2")));
 
     // TODO: check Aphrodite can still swap
     // TODO: check Hades can still bind up to twice
+}
+
+TEST(SpecialRule3, Basic) {
+    // If you kill an enemy on their Gates Space, you may move any of your
+    // characters that are already on the board immediately.
+
+    State state = BoardTemplate(
+            "     z     "
+            "    ...    "
+            "   E....   "
+            "  ...Z...  "
+            " ......... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+        ).ToState(LIGHT);
+
+    auto turns = TurnStrings(state);
+    EXPECT_THAT(turns, Contains("Z!e9,Z>e5"));  // doesn't have to move to goal
+    EXPECT_THAT(turns, Contains("Z!e9,E>e9"));  // doesn't have to be the same God
 }
 
 TEST(StatusEffects, Basic) {
@@ -386,8 +417,5 @@ TEST(Hephaestus, Special) {
     ExecuteTurn(state, *turn);
     EXPECT_EQ(state.hp(DARK, APHRODITE), 0);
 }
-
-// TODO: special rule 2
-// TODO: special rule 3
 
 // TODO: hera, poseidon, apollo, aphrodite, ares, hermes, dionysus, artemis, hades, athena
