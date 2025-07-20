@@ -43,9 +43,16 @@ template<> struct StringMaker<std::vector<field_t>> {
 
 namespace {
 
+std::vector<std::string> TurnStrings(const State &state) {
+    std::vector<std::string> res;
+    for (const Turn &turn : GenerateTurns(state)) {
+        res.push_back(turn.ToString());
+    }
+    return res;
+}
+
 std::optional<Turn> FindTurn(const State &state, std::string_view sv) {
     for (const Turn &turn : GenerateTurns(state)) {
-        std::cerr << "? " << turn.ToString() << " <> " << sv <<'\n';
         if (turn.ToString() == sv) return turn;
     }
     return {};
@@ -159,6 +166,27 @@ void TestAttack(Player player, God god, std::vector<God> expected, const BoardTe
 }
 
 }  // namespace
+
+TEST_CASE("special rule 1") {
+    // If your home gate is occupied, you may move a piece and summon a god afterward,
+    // who may then attack but not move, but may use a special ability.
+
+    State state = State::Initial();
+    state.Place(DARK, ZEUS, ParseField("e2"));
+
+    auto turns = TurnStrings(state);
+
+    CHECK(FindTurn(state, "N@e1,N!e2"));
+    CHECK(FindTurn(state, "N@e1,N>f2"));
+
+    state.Place(LIGHT, ZEUS, ParseField("e1"));
+    turns = TurnStrings(state);
+    CHECK      (FindTurn(state, "Z>d2,N@e1,N!e2"));
+    CHECK_FALSE(FindTurn(state, "Z>d2,N@e1,N>f2"));
+
+    // TODO: check Aphrodite can still swap
+    // TODO: check Hades can still bind up to twice
+}
 
 TEST_CASE("status effects") {
     // 3  . . . P .
@@ -366,7 +394,6 @@ TEST_CASE("hephaestus special") {
     CHECK(state.hp(DARK, APHRODITE) == 0);
 }
 
-// TODO: special rule 1
 // TODO: special rule 2
 // TODO: special rule 3
 

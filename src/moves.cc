@@ -30,7 +30,7 @@ void GenerateMovesOne(
         if (may_summon_after) {
             State new_state = state;
             ExecuteAction(new_state, action);
-            GenerateSummons(state, turns, turn, false);
+            GenerateSummons(new_state, turns, turn, false);
         }
         // TODO: if Ares kills an enemy at their gate by moving next to
         // them, he should get to move again
@@ -97,7 +97,6 @@ void GenerateMovesAll(
         }
     }
     // TODO: support Hermes movement boost!
-    // TODO: if moving from the gate, allow following up with summons.
 }
 
 void GenerateAttacksOne(
@@ -220,7 +219,7 @@ void GenerateSummons(
                 GenerateMovesOne(new_state, turns, turn, gate, false);
             }
 
-            // TODO: summon + attack
+            GenerateAttacksOne(new_state, turns, turn, gate);
 
             turn.naction--;
         }
