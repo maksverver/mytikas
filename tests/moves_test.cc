@@ -1,4 +1,9 @@
-#include "doctest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
+using ::testing::Contains;
+using ::testing::Not;
+using ::testing::UnorderedElementsAreArray;
 
 #include "state.h"
 #include "moves.h"
@@ -29,17 +34,6 @@ std::ostream& operator<<(std::ostream &os, const std::vector<God> &v) {
     os << "}";
     return os;
 }
-
-namespace doctest {
-template<> struct StringMaker<std::vector<field_t>> {
-    static String convert(const std::vector<field_t>& v) {
-        using ::operator<<;
-        std::ostringstream oss;
-        oss << v;
-        return oss.str().c_str();
-    }
-};
-}  // namespace doctest
 
 namespace {
 
@@ -154,20 +148,20 @@ void TestMovement(Player player, God god, const BoardTemplate &t) {
     std::vector<field_t> received = MoveDestinations(state, god);
     std::ranges::sort(received);
 
-    CHECK_EQ(expected, received);
+    EXPECT_EQ(expected, received);
 }
 
 void TestAttack(Player player, God god, std::vector<God> expected, const BoardTemplate &t) {
-    State state = t.ToState(player);
-    std::vector<God> received = AttackTargets(state, god);
+    std::vector<God> received = AttackTargets(t.ToState(player), god);
     std::ranges::sort(expected);
     std::ranges::sort(received);
-    CHECK_EQ(expected, received);
+    EXPECT_THAT(received, UnorderedElementsAreArray(expected))
+        << "expected: " << expected << "; received: " << received;
 }
 
 }  // namespace
 
-TEST_CASE("special rule 1") {
+TEST(SpecialRule1, Basic) {
     // If your home gate is occupied, you may move a piece and summon a god afterward,
     // who may then attack but not move, but may use a special ability.
 
@@ -175,20 +169,19 @@ TEST_CASE("special rule 1") {
     state.Place(DARK, ZEUS, ParseField("e2"));
 
     auto turns = TurnStrings(state);
-
-    CHECK(FindTurn(state, "N@e1,N!e2"));
-    CHECK(FindTurn(state, "N@e1,N>f2"));
+    EXPECT_THAT(turns, Contains("N@e1,N!e2"));
+    EXPECT_THAT(turns, Contains("N@e1,N!e2"));
 
     state.Place(LIGHT, ZEUS, ParseField("e1"));
     turns = TurnStrings(state);
-    CHECK      (FindTurn(state, "Z>d2,N@e1,N!e2"));
-    CHECK_FALSE(FindTurn(state, "Z>d2,N@e1,N>f2"));
+    EXPECT_THAT(turns,     Contains("Z>d2,N@e1,N!e2") );
+    EXPECT_THAT(turns, Not(Contains("Z>d2,N@e1,N>f2")));
 
     // TODO: check Aphrodite can still swap
     // TODO: check Hades can still bind up to twice
 }
 
-TEST_CASE("status effects") {
+TEST(StatusEffects, Basic) {
     // 3  . . . P .
     // 2    Z z .
     // 1      N
@@ -204,61 +197,61 @@ TEST_CASE("status effects") {
     state.Place(DARK,  Z, ParseField("e2"));
     state.Place(LIGHT, P, ParseField("f3"));
     state.Place(LIGHT, N, ParseField("e1"));
-    CHECK(state.fx(LIGHT, N) == UNAFFECTED);
-    CHECK(state.fx(LIGHT, Z) == SHIELDED);
-    CHECK(state.fx(LIGHT, P) == UNAFFECTED);
-    CHECK(state.fx(DARK,  Z) == UNAFFECTED);
+    EXPECT_EQ(state.fx(LIGHT, N), UNAFFECTED);
+    EXPECT_EQ(state.fx(LIGHT, Z), SHIELDED);
+    EXPECT_EQ(state.fx(LIGHT, P), UNAFFECTED);
+    EXPECT_EQ(state.fx(DARK,  Z), UNAFFECTED);
 
     // Ally moving away removes status:
     state.Move(LIGHT, Z, ParseField("c3"));
-    CHECK(state.fx(LIGHT, N) == UNAFFECTED);
-    CHECK(state.fx(LIGHT, Z) == UNAFFECTED);
-    CHECK(state.fx(LIGHT, P) == UNAFFECTED);
-    CHECK(state.fx(DARK,  Z) == UNAFFECTED);
+    EXPECT_EQ(state.fx(LIGHT, N), UNAFFECTED);
+    EXPECT_EQ(state.fx(LIGHT, Z), UNAFFECTED);
+    EXPECT_EQ(state.fx(LIGHT, P), UNAFFECTED);
+    EXPECT_EQ(state.fx(DARK,  Z), UNAFFECTED);
 
     // Ally moving towards adds status:
     state.Move(LIGHT, P, ParseField("f2"));
-    CHECK((int)state.fx(LIGHT, N) == (int)UNAFFECTED);
-    CHECK(state.fx(LIGHT, Z) == UNAFFECTED);
-    CHECK(state.fx(LIGHT, P) == SHIELDED);
-    CHECK(state.fx(DARK,  Z) == UNAFFECTED);
+    EXPECT_EQ((int)state.fx(LIGHT, N), (int)UNAFFECTED);
+    EXPECT_EQ(state.fx(LIGHT, Z), UNAFFECTED);
+    EXPECT_EQ(state.fx(LIGHT, P), SHIELDED);
+    EXPECT_EQ(state.fx(DARK,  Z), UNAFFECTED);
 
     // Moving towards ally adds status, way from ally removes status:
     state.Move(LIGHT, N, ParseField("d2"));
-    CHECK(state.fx(LIGHT, N) == UNAFFECTED);
-    CHECK(state.fx(LIGHT, Z) == SHIELDED);
-    CHECK(state.fx(LIGHT, P) == UNAFFECTED);
-    CHECK(state.fx(DARK,  Z) == UNAFFECTED);
+    EXPECT_EQ(state.fx(LIGHT, N), UNAFFECTED);
+    EXPECT_EQ(state.fx(LIGHT, Z), SHIELDED);
+    EXPECT_EQ(state.fx(LIGHT, P), UNAFFECTED);
+    EXPECT_EQ(state.fx(DARK,  Z), UNAFFECTED);
 
     // Removing god removes status.
     state.Remove(LIGHT, N);
-    CHECK(state.fx(LIGHT, N) == UNAFFECTED);
-    CHECK(state.fx(LIGHT, Z) == UNAFFECTED);
-    CHECK(state.fx(LIGHT, P) == UNAFFECTED);
-    CHECK(state.fx(DARK,  Z) == UNAFFECTED);
+    EXPECT_EQ(state.fx(LIGHT, N), UNAFFECTED);
+    EXPECT_EQ(state.fx(LIGHT, Z), UNAFFECTED);
+    EXPECT_EQ(state.fx(LIGHT, P), UNAFFECTED);
+    EXPECT_EQ(state.fx(DARK,  Z), UNAFFECTED);
 }
 
-TEST_CASE("overlapping status effects") {
+TEST(StatusEffects, Overlap) {
     State state = State::Initial();
     state.Place(LIGHT, ZEUS,       ParseField("e1"));
     state.Place(LIGHT, HEPHAESTUS, ParseField("d2"));
     state.Place(LIGHT, ATHENA,     ParseField("e2"));
     state.Place(LIGHT, HERMES,     ParseField("f2"));
 
-    CHECK(state.fx(LIGHT, ZEUS)       == (DAMAGE_BOOST | SPEED_BOOST | SHIELDED));
-    CHECK(state.fx(LIGHT, HEPHAESTUS) == SHIELDED);
-    CHECK(state.fx(LIGHT, ATHENA)     == (DAMAGE_BOOST | SPEED_BOOST));
-    CHECK(state.fx(LIGHT, HERMES)     == SHIELDED);
+    EXPECT_EQ(state.fx(LIGHT, ZEUS),        DAMAGE_BOOST | SPEED_BOOST | SHIELDED);
+    EXPECT_EQ(state.fx(LIGHT, HEPHAESTUS),  SHIELDED);
+    EXPECT_EQ(state.fx(LIGHT, ATHENA),      DAMAGE_BOOST | SPEED_BOOST);
+    EXPECT_EQ(state.fx(LIGHT, HERMES),      SHIELDED);
 
     state.Remove(LIGHT, ATHENA);
 
-    CHECK(state.fx(LIGHT, ZEUS)       == (DAMAGE_BOOST | SPEED_BOOST));
-    CHECK(state.fx(LIGHT, HEPHAESTUS) == UNAFFECTED);
-    CHECK(state.fx(LIGHT, ATHENA)     == UNAFFECTED);
-    CHECK(state.fx(LIGHT, HERMES)     == UNAFFECTED);
+    EXPECT_EQ(state.fx(LIGHT, ZEUS),       DAMAGE_BOOST | SPEED_BOOST);
+    EXPECT_EQ(state.fx(LIGHT, HEPHAESTUS), UNAFFECTED);
+    EXPECT_EQ(state.fx(LIGHT, ATHENA),     UNAFFECTED);
+    EXPECT_EQ(state.fx(LIGHT, HERMES),     UNAFFECTED);
 }
 
-TEST_CASE("zeus moves") {
+TEST(Zeus, Moves) {
     TestMovement(LIGHT, ZEUS,
             "     .     "
             "    ...    "
@@ -296,7 +289,7 @@ TEST_CASE("zeus moves") {
     );
 }
 
-TEST_CASE("zeus attacks") {
+TEST(Zeus, Attacks) {
     TestAttack(LIGHT, ZEUS, {APOLLO, POSEIDON},
             "     .     "
             "    ...    "
@@ -310,7 +303,7 @@ TEST_CASE("zeus attacks") {
     );
 }
 
-TEST_CASE("zeus special") {
+TEST(Zeus, Special) {
     TestAttack(LIGHT, ZEUS, {POSEIDON, APOLLO, DIONYSOS, ATHENA, HERA},
             "     .     "
             "    ...    "
@@ -324,7 +317,7 @@ TEST_CASE("zeus special") {
     );
 }
 
-TEST_CASE("hephaestus moves") {
+TEST(Hephaestus, Moves) {
     TestMovement(LIGHT, HEPHAESTUS,
             "     .     "
             "    ...    "
@@ -362,7 +355,7 @@ TEST_CASE("hephaestus moves") {
     );
 }
 
-TEST_CASE("hephaestus attacks") {
+TEST(Hephaestus, Attacks) {
     TestAttack(LIGHT, HEPHAESTUS, {APOLLO, POSEIDON},
             "     .     "
             "    ...    "
@@ -376,7 +369,7 @@ TEST_CASE("hephaestus attacks") {
     );
 }
 
-TEST_CASE("hephaestus special") {
+TEST(Hephaestus, Special) {
     State state = BoardTemplate(
             "     .     "
             "    ...    "
@@ -389,9 +382,9 @@ TEST_CASE("hephaestus special") {
             "     .     "
         ).ToState(LIGHT);
     std::optional<Turn> turn = FindTurn(state, "R!e7");
-    REQUIRE(turn);
+    ASSERT_TRUE(turn);
     ExecuteTurn(state, *turn);
-    CHECK(state.hp(DARK, APHRODITE) == 0);
+    EXPECT_EQ(state.hp(DARK, APHRODITE), 0);
 }
 
 // TODO: special rule 2
