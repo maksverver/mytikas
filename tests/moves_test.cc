@@ -341,6 +341,7 @@ TEST(Zeus, Attacks) {
     );
 }
 
+// Lighting Bolt: Attack can pass over friendly or enemy pieces
 TEST(Zeus, Special) {
     TestAttack(LIGHT, ZEUS, {POSEIDON, APOLLO, DIONYSOS, ATHENA, HERA},
             "     .     "
@@ -407,6 +408,7 @@ TEST(Hephaestus, Attacks) {
     );
 }
 
+// Hephaestus boosts attack damage of an adjacent friend by 1
 TEST(Hephaestus, Special) {
     State state = BoardTemplate(
             "     .     "
@@ -432,6 +434,88 @@ TEST(Hephaestus, Special) {
     ExecuteTurn(state, "N!e7");
 
     EXPECT_EQ(state.hp(DARK, ZEUS), 3);  // -4
+}
+
+TEST(Hera, Moves) {
+    TestMovement(LIGHT, HERA,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  .......  "
+            " ......... "
+            "  .......  "
+            "   +.+.+   "
+            "    +.+    "
+            "     E     "
+    );
+
+    TestMovement(LIGHT, HERA,
+            "     .     "
+            "    ...    "
+            "   +.+.+   "
+            "  ..+.+..  "
+            " ..+.E.+.. "
+            "  ..+.+..  "
+            "   +.+.+   "
+            "    ...    "
+            "     .     "
+    );
+
+    TestMovement(LIGHT, HERA,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  o......  "
+            " E.+...... "
+            "  +......  "
+            "   +....   "
+            "    ...    "
+            "     .     "
+    );
+}
+
+TEST(Hera, Attacks) {
+    TestAttack(LIGHT, HERA, {DIONYSOS, APOLLO},
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  .......  "
+            " .z..Ead.. "
+            "  m...o..  "
+            "   ....p   "
+            "    ...    "
+            "     .     "
+    );
+}
+
+// Hera does double damage when attacking from behind or the side
+// (note that "behind" depends on which side she's on!)
+TEST(Hera, Special) {
+    State state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   P.p..   "
+            "  .......  "
+            " z.E.e.Z.. "
+            "  .......  "
+            "   H.h..   "
+            "    ...    "
+            "     .     "
+    ).ToState(LIGHT);
+
+    ExecuteTurn(state, "E!e7");
+    ExecuteTurn(state, "E!c7");
+    ExecuteTurn(state, "E!a5");
+    ExecuteTurn(state, "E!g5");
+    ExecuteTurn(state, "E!e3");
+    ExecuteTurn(state, "E!c3");
+
+    EXPECT_EQ(state.hp(DARK,  POSEIDON),   2);  // 7 hp - 5 dmg
+    EXPECT_EQ(state.hp(LIGHT, POSEIDON),   0);
+    EXPECT_EQ(state.hp(DARK,  ZEUS),       0);
+    EXPECT_EQ(state.hp(LIGHT, ZEUS),       0);
+    EXPECT_EQ(state.hp(DARK,  HEPHAESTUS), 0);
+    EXPECT_EQ(state.hp(LIGHT, HEPHAESTUS), 4);  // 9 hp - 5 dmg
 }
 
 // TODO: hera, poseidon, apollo, aphrodite, ares, hermes, dionysus, artemis, hades, athena

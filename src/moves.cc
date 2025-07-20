@@ -248,8 +248,20 @@ std::vector<Turn> GenerateTurns(const State &state) {
     return turns;
 }
 
-static int GetDamage(const State &state, Player player, God god) {
+static int GetDamage(const State &state, Player player, God god, field_t target) {
     int damage = pantheon[god].dmg;
+
+    if (god == HERA) {
+        // Hera does double damage when attacking from the side or behind.
+        //
+        // Note the rules don't specify if doubling happens before or after
+        // Hephaestus' damage boost. Here I do before, but it doesn't really
+        // matter because the base damage is 5 and max HP is 10, so double
+        // damage can insta-kill any god anyway.
+        field_t source_field = state.fi(player, god);
+        int delta = FieldCoords(target).r - FieldCoords(source_field).r;
+        if (player == LIGHT ? delta <= 0 : delta >= 0) damage *= 2;
+    }
 
     // Hephaestus damage boost
     if (state.fx(player, god) & DAMAGE_BOOST) ++damage;
@@ -284,7 +296,8 @@ void ExecuteAction(State &state, const Action &action) {
             break;
 
         case Action::ATTACK:
-            DamageAt(state, action.field, opponent, GetDamage(state, player, action.god));
+            DamageAt(state, action.field, opponent,
+                    GetDamage(state, player, action.god, action.field));
             break;
 
         case Action::SPECIAL:
