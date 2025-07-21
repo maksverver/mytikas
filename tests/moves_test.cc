@@ -805,7 +805,67 @@ TEST(Apollo, Special) {
     EXPECT_EQ(state.hp(DARK,  ZEUS), 2);  // 5 - 3, direct horizontal attack
 }
 
-// TODO: aphrodite, ares, hermes, dionysus, artemis, hades, athena
+
+TEST(Athena, Moves) {
+    TestMovement(LIGHT, ATHENA,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  .......  "
+            " ......... "
+            "  .......  "
+            "   .....   "
+            "    +++    "
+            "     N     "
+    );
+
+    TestMovement(LIGHT, ATHENA,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  ..+++..  "
+            " ...+N+... "
+            "  ..+++..  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    );
+
+    TestMovement(LIGHT, ATHENA,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  o......  "
+            " N+....... "
+            "  +......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    );
+}
+
+TEST(Athena, Attacks) {
+    TestAttack(LIGHT, ATHENA, {APOLLO, POSEIDON},
+            "     .     "
+            "    .o.    "
+            "   m....   "
+            "  ..p..h.  "
+            " z...N.... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    );
+}
+
+// TODO: athena special (protecting against damage)
+
+// TODO: aphrodite, ares,  hermes, dionysus, artemis, hades, athena
+
+// TODO: dionysis cannot kill enemy protected by athena
+// TODO: arthemis cannot use withering moon on enemy protected athena
+// TODO: hermes CAN kill enemy protected by athena when killing athena on the same turn
+// TODO: hades CAN bind enemy protected by athena
 
 // TODO: Poseidon/Hades test:
 //      - when Hades gets knocked back, chains should stay on enemies that remain
