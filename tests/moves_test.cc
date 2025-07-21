@@ -860,7 +860,7 @@ TEST(Athena, Attacks) {
 
 // TODO: athena special (protecting against damage)
 
-// TODO: aphrodite, ares,  hermes, dionysus, artemis, hades, athena
+// TODO: aphrodite, ares, hermes, dionysus, artemis, hades, athena
 
 // TODO: dionysis cannot kill enemy protected by athena
 // TODO: arthemis cannot use withering moon on enemy protected athena
