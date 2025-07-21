@@ -315,3 +315,35 @@ uint8_t State::DealDamage(Player player, field_t field, int damage) {
     }
     return hp;
 }
+
+void State::SetHpForTest(Player player, God god, int hp) {
+    assert(0 < hp && hp <= pantheon[god].hit);
+    gods[player][god].hp = hp;
+}
+
+void State::DecHpForTest(Player player, God god, int dmg) {
+    SetHpForTest(player, god, hp(player, god) - dmg);
+}
+
+std::ostream &operator<<(std::ostream &os, const State::DebugPrint &dbg) {
+    const State &s = dbg.state;
+    for (int p = 0; p < 2; ++p) {
+        for (int g = 0; g < GOD_COUNT; ++g) {
+            const GodState &gs = s.gods[p][g];
+            os << "gods[" << p << "][" << g << "]:"
+                << " hp=" << (int) gs.hp
+                << " fi=" << (int) gs.fi
+                << " fx=" << (int) gs.fx
+                << '\n';
+        }
+    }
+    for (int f = 0; f < FIELD_COUNT; ++f) {
+        const FieldState &fs = s.fields[f];
+        std::cerr << "fields[" << f << "] ="
+            << " occupied=" << (int) fs.occupied
+            << " player=" << (int) fs.player
+            << " god=" << (int) fs.god
+            << '\n';
+    }
+    return os;
+}

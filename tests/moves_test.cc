@@ -87,7 +87,7 @@ std::vector<God> AttackTargets(const State &state, God god) {
 
 field_t Flip(field_t f) {
     auto [r, c] = FieldCoords(f);
-    return FieldIndex(8 - r, c);
+    return FieldIndex(BOARD_SIZE - 1 - r, c);
 }
 
 struct BoardTemplate {
@@ -132,7 +132,7 @@ State BoardTemplate::ToState(Player player) const {
 
     bool init_gods[2][GOD_COUNT] = {};
     for (auto [player, god, field] : places) {
-        assert(init_gods[player][god] == false);
+        assert(init_gods[player][god] == false);  // duplicate god on board
         init_gods[player][god] = true;
     }
 
@@ -519,6 +519,219 @@ TEST(Hera, Special) {
     EXPECT_EQ(state.hp(LIGHT, HEPHAESTUS), 4);  // 9 hp - 5 dmg
 }
 
+TEST(Poseidon, Moves) {
+    TestMovement(LIGHT, POSEIDON,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  .......  "
+            " ......... "
+            "  ...+...  "
+            "   .+++.   "
+            "    +++    "
+            "     P     "
+    );
+
+    TestMovement(LIGHT, POSEIDON,
+            "     .     "
+            "    .+.    "
+            "   .+++.   "
+            "  .+++++.  "
+            " .+++P+++. "
+            "  .+++++.  "
+            "   .+++.   "
+            "    .+.    "
+            "     .     "
+    );
+
+    TestMovement(LIGHT, POSEIDON,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  o+.....  "
+            " P+++..... "
+            "  +z.....  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    );
+}
+
+TEST(Poseidon, AttackLightWithKnockback) {
+    State old_state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   .ap..   "
+            "  ..Ahz..  "
+            " ....Pm... "
+            "  ...o...  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    ).ToState(LIGHT);
+    State new_state = BoardTemplate(
+            "     .     "
+            "    ap.    "
+            "   ..hz.   "
+            "  ..A....  "
+            " ....Pm... "
+            "  ...o...  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    ).ToState(DARK);
+    new_state.DecHpForTest(DARK, APHRODITE,  4);
+    new_state.DecHpForTest(DARK, POSEIDON,   4);
+    new_state.DecHpForTest(DARK, HEPHAESTUS, 4);
+    new_state.DecHpForTest(DARK, ZEUS,       4);
+
+    State state = old_state;
+    ExecuteTurn(state, "P!e5");
+    EXPECT_EQ(state, new_state)
+        << "Expected:\n" << State::DebugPrint(new_state) << '\n'
+        << "Received:\n" << State::DebugPrint(state) << '\n';
+}
+
+// This is just the reflected version of the above test.
+TEST(Poseidon, AttackDarkWithKnockback) {
+    State old_state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  ...O...  "
+            " ....pM... "
+            "  ..aHZ..  "
+            "   .AP..   "
+            "    ...    "
+            "     .     "
+    ).ToState(DARK);
+    State new_state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  ...O...  "
+            " ....pM... "
+            "  ..a....  "
+            "   ..HZ.   "
+            "    AP.    "
+            "     .     "
+    ).ToState(LIGHT);
+    new_state.DecHpForTest(LIGHT, APHRODITE,  4);
+    new_state.DecHpForTest(LIGHT, POSEIDON,   4);
+    new_state.DecHpForTest(LIGHT, HEPHAESTUS, 4);
+    new_state.DecHpForTest(LIGHT, ZEUS,       4);
+
+    State state = old_state;
+    ExecuteTurn(state, "P!e5");
+    EXPECT_EQ(state, new_state)
+        << "Expected:\n" << State::DebugPrint(new_state) << '\n'
+        << "Received:\n" << State::DebugPrint(state) << '\n';
+}
+
+TEST(Poseidon, AttackPushBackBlocked) {
+    State old_state = BoardTemplate(
+            "     .     "
+            "    .m.    "
+            "   aZh..   "
+            "  .poe...  "
+            " ...P..... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    ).ToState(LIGHT);
+    State new_state = BoardTemplate(
+            "     .     "
+            "    .m.    "
+            "   aZh..   "
+            "  .poe...  "
+            " ...P..... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    ).ToState(DARK);
+    new_state.DecHpForTest(DARK, APHRODITE,  4);
+    new_state.DecHpForTest(DARK, HEPHAESTUS, 4);
+    new_state.DecHpForTest(DARK, POSEIDON,   4);
+    new_state.DecHpForTest(DARK, APOLLO,     4);
+    new_state.DecHpForTest(DARK, HERA,       4);
+
+    State state = old_state;
+    ExecuteTurn(state, "P!d5");
+    EXPECT_EQ(state, new_state)
+        << "Expected:\n" << State::DebugPrint(new_state) << '\n'
+        << "Received:\n" << State::DebugPrint(state) << '\n';
+}
+
+// Note: because Athena has fewer HP (3) than Poseidon's base damage (4)
+// she always dies if she's in range.
+TEST(Poseidon, AthenaDies) {
+    State old_state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  ..znh..  "
+            " ....P.... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    ).ToState(LIGHT);
+    State new_state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   .z.h.   "
+            "  .......  "
+            " ....P.... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    ).ToState(DARK);
+    new_state.DecHpForTest(DARK, ZEUS,       4);
+    new_state.DecHpForTest(DARK, HEPHAESTUS, 4);
+
+    State state = old_state;
+    ExecuteTurn(state, "P!e5");
+    EXPECT_EQ(state, new_state)
+        << "Expected:\n" << State::DebugPrint(new_state) << '\n'
+        << "Received:\n" << State::DebugPrint(state) << '\n';
+}
+
+TEST(Poseidon, AthenaPreventsDamageButNotKnockacb) {
+    State old_state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  ..zh...  "
+            " ...P.n... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    ).ToState(LIGHT);
+    State new_state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   .zh..   "
+            "  .......  "
+            " ...P.n... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    ).ToState(DARK);
+    new_state.DecHpForTest(DARK, ZEUS, 4);
+    // Note: Hephaestus takes no damage but is knocked back.
+
+    State state = old_state;
+    ExecuteTurn(state, "P!d5");
+    EXPECT_EQ(state, new_state)
+        << "Expected:\n" << State::DebugPrint(new_state) << '\n'
+        << "Received:\n" << State::DebugPrint(state) << '\n';
+}
+
 TEST(Apollo, Moves) {
     TestMovement(LIGHT, APOLLO,
             "     .     "
@@ -592,5 +805,10 @@ TEST(Apollo, Special) {
     EXPECT_EQ(state.hp(DARK,  ZEUS), 2);  // 5 - 3, direct horizontal attack
 }
 
-// TODO: poseidon (before apollo)
 // TODO: aphrodite, ares, hermes, dionysus, artemis, hades, athena
+
+// TODO: Poseidon/Hades test:
+//      - when Hades gets knocked back, chains should stay on enemies that remain
+//        adjacent, but are removed from enemies that are no longer adjacent (note
+//        that when Hades is knocked back, his enemies aren't)
+//      - when enemies get knocked back, they should be dechained from friendly Hades!

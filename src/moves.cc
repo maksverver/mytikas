@@ -4,6 +4,56 @@
 
 namespace {
 
+// A rectangular area to be attacked. Includes all fields with coords (r, c)
+// where r1 <= r <= r2 and c1 <= c <= c2 (i.e., all endpoints are inclusive).
+struct Area {
+    int r1, c1, r2, c2;
+
+    bool Contains(field_t field) const {
+        auto [r, c] = FieldCoords(field);
+        return Contains(r, c);
+    }
+
+    bool Contains(int r, int c) const {
+        return r1 <= r && r <= r2 && c1 <= c && c <= c2;
+    }
+
+    static Area Get(Player player, God god, field_t field) {
+        auto [r, c] = FieldCoords(field);
+        int r1, c1, r2, c2;
+        switch (god) {
+            case POSEIDON:
+                c1 = c - 1;
+                c2 = c + 1;
+                if (player == LIGHT) {
+                    r1 = r + 1;
+                    r2 = r + 2;
+                } else {
+                    r1 = r - 2;
+                    r2 = r - 1;
+                }
+                break;
+            case DIONYSOS:
+                c1 = c2 = c;
+                r1 = r2 = r;
+                // TODO
+                break;
+            case HADES:
+                c1 = c2 = c;
+                r1 = r2 = r;
+                // TODO
+                break;
+            default:
+                assert(false);
+        }
+        if (r1 < 0) r1 = 0;
+        if (c1 < 0) c1 = 0;
+        if (r2 >= BOARD_SIZE) r2 = BOARD_SIZE - 1;
+        if (c2 >= BOARD_SIZE) c2 = BOARD_SIZE - 1;
+        return Area{r1, c1, r2, c2};
+    }
+};
+
 void GenerateSummons(
     const State &state, std::vector<Turn> &turns, Turn &turn,
     bool may_move_after);
@@ -103,14 +153,15 @@ void GenerateAttacksOne(
     const State &state, std::vector<Turn> &turns, Turn &turn,
     field_t field
 ) {
-    const Player opponent = Other(state.NextPlayer());
+    const Player player = state.NextPlayer();
+    const Player opponent = Other(player);
     const God god = state.GodAt(field);
     assert(god < GOD_COUNT);
 
     int max_dist = pantheon[god].rng;
     std::span<const Dir> dirs = pantheon[god].atk_dirs;
 
-    auto add_action = [&](field_t field) {
+    auto add_action_with_area = [&](field_t field, Area area) {
         Action action{
             .type      = Action::ATTACK,
             .god       = god,
@@ -118,7 +169,7 @@ void GenerateAttacksOne(
         };
         turn.actions[turn.naction++] = action;
         turns.push_back(turn);
-        if (field == gate_index[opponent]) {
+        if (area.Contains(gate_index[opponent])) {
             State new_state = state;
             ExecuteAction(new_state, action);
             if (!new_state.IsOccupied(field)) {
@@ -129,6 +180,25 @@ void GenerateAttacksOne(
         }
         --turn.naction;
     };
+    auto add_action = [&](field_t field) {
+        auto [r, c] = FieldCoords(field);
+        add_action_with_area(field, Area{r, c, r, c});
+    };
+
+    if (dirs.empty()) {
+        // Area attacks. Handle specially.
+        Area area = Area::Get(player, god, field);
+        for (int r = area.r1; r <= area.r2; ++r) {
+            for (int c = area.c1; c <= area.c2; ++c) {
+                if (int i = FieldIndex(r, c); i != -1 && state.PlayerAt(i) == opponent) {
+                    add_action_with_area(field, area);
+                    goto done;
+                }
+            }
+        }
+    done:
+        return;
+    }
 
     // The logic below is similar to GenerateMovesOne(), defined above.
     // Try to keep the two in sync.
@@ -277,6 +347,10 @@ static int GetDamage(const State &state, Player player, God god, field_t target)
                 if (dr == 0 || dc == 0 || abs(dr) == abs(dc)) ++damage;
             }
             break;
+
+        default:
+            // No special handling
+            break;
     }
 
     // Hephaestus damage boost
@@ -285,13 +359,54 @@ static int GetDamage(const State &state, Player player, God god, field_t target)
     return damage;
 }
 
-static void DamageAt(State &state, field_t field, Player opponent, int damage) {
-    if (state.PlayerAt(field) != opponent) return;
+static void DamageField(State &state, field_t field, Player opponent, int damage) {
+    assert(field != -1 && state.PlayerAt(field) == opponent);
 
     if (state.fx(opponent, state.GodAt(field)) & SHIELDED) {
         // Athena protects against damage
     } else {
         state.DealDamage(opponent, field, damage);
+    }
+}
+
+static void DamageArea(State &state, Area area, Player opponent, int damage, int knock_dir) {
+    // First: damage enemy Athena if she's in range, since if Athena dies, she
+    // cannot protect anyone else this turn.
+    field_t athena_field = state.fi(opponent, ATHENA);
+    if (athena_field != -1 && area.Contains(athena_field)) {
+        DamageField(state, athena_field, opponent, damage);
+    }
+
+    // Second pass: damage everyone in range except enemy Athena.
+    for (int r = area.r1; r <= area.r2; ++r) {
+        for (int c = area.c1; c <= area.c2; ++c) {
+            if (field_t field = FieldIndex(r, c); field != -1 &&
+                    field != athena_field && state.PlayerAt(field) == opponent) {
+                DamageField(state, field, opponent, damage);
+            }
+        }
+    }
+
+    if (knock_dir != 0) {
+        // Apply knock back (Poseidon's special ability)
+        //
+        // In the current interpretation, all attacked enemies (including those
+        // protected from damage) are pushed back, unless they are at the edge
+        // of the board, or there is a non-pushed-back piece behind them (which
+        // may be either a friend, or a foe outside the attack range). Note that
+        // means that if there is a friendly piece between Poseidon and an enemy,
+        // the enemy is still knocked back.
+        for (int r = knock_dir > 0 ? area.r2 : area.r1;
+                (knock_dir > 0 ? r >= area.r1 : r <= area.r2);
+                (knock_dir > 0 ? --r : ++r)) {
+            for (int c = area.c1; c <= area.c2; ++c) {
+                if (int field = FieldIndex(r, c); field != -1 && state.PlayerAt(field) == opponent) {
+                    if (int behind = FieldIndex(r + knock_dir, c); behind != -1 && !state.IsOccupied(behind)) {
+                        state.Move(opponent, state.GodAt(field), behind);
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -312,8 +427,17 @@ void ExecuteAction(State &state, const Action &action) {
             break;
 
         case Action::ATTACK:
-            DamageAt(state, action.field, opponent,
-                    GetDamage(state, player, action.god, action.field));
+            {
+                int damage = GetDamage(state, player, action.god, action.field);
+                if (pantheon[action.god].atk_dirs.empty()) {
+                    DamageArea(
+                            state, Area::Get(player, action.god, action.field),
+                            opponent, damage,
+                            action.god == POSEIDON ? (player == LIGHT ? +1 : -1) : 0);
+                } else {
+                    DamageField(state, action.field, opponent, damage);
+                }
+            }
             break;
 
         case Action::SPECIAL:

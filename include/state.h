@@ -269,6 +269,12 @@ public:
     // Mostly intended for debugging/testing.
     auto operator<=>(const State &) const = default;
 
+    // Testing/debugging use only:
+    void SetHpForTest(Player player, God god, int hp);
+    void DecHpForTest(Player player, God god, int dmg);
+    struct DebugPrint { const State &state; };
+    friend std::ostream &operator<<(std::ostream &os, const DebugPrint &dbg);
+
 private:
     void Remove(Player player, God god, field_t field);
 
@@ -290,5 +296,7 @@ private:
     FieldState  fields[FIELD_COUNT];
     Player      player;
 };
+
+std::ostream &operator<<(std::ostream &os, const State::DebugPrint &dbg);
 
 #endif  // ndef STATE_H_INCLUDED
