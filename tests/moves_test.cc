@@ -805,7 +805,6 @@ TEST(Apollo, Special) {
     EXPECT_EQ(state.hp(DARK,  ZEUS), 2);  // 5 - 3, direct horizontal attack
 }
 
-
 TEST(Athena, Moves) {
     TestMovement(LIGHT, ATHENA,
             "     .     "
