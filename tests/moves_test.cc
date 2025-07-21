@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 
 using ::testing::Contains;
+using ::testing::IsEmpty;
 using ::testing::Not;
 using ::testing::UnorderedElementsAreArray;
 
@@ -110,6 +111,23 @@ BoardTemplate::BoardTemplate(std::string_view sv) {
     assert(j == FIELD_COUNT);
 }
 
+/* Example usage (for easy copy/pasting):
+
+    State state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  .......  "
+            " ......... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    ).ToState(LIGHT);
+
+Note only gods present on the template are given hitpoints, so other gods cannot
+be summoned! (Maybe I need an additional parameter here to allow that.)
+*/
 State BoardTemplate::ToState(Player player) const {
     struct Place {
         Player player;
@@ -344,7 +362,7 @@ TEST(Zeus, Attacks) {
 
 // Lighting Bolt: Attack can pass over friendly or enemy pieces
 TEST(Zeus, Special) {
-    TestAttack(LIGHT, ZEUS, {POSEIDON, APOLLO, DIONYSOS, ATHENA, HERA},
+    TestAttack(LIGHT, ZEUS, {POSEIDON, APOLLO, DIONYSUS, ATHENA, HERA},
             "     .     "
             "    ...    "
             "   .....   "
@@ -476,7 +494,7 @@ TEST(Hera, Moves) {
 }
 
 TEST(Hera, Attacks) {
-    TestAttack(LIGHT, HERA, {DIONYSOS, APOLLO},
+    TestAttack(LIGHT, HERA, {DIONYSUS, APOLLO},
             "     .     "
             "    ...    "
             "   .....   "
@@ -771,7 +789,7 @@ TEST(Apollo, Moves) {
 }
 
 TEST(Apollo, Attacks) {
-    TestAttack(LIGHT, APOLLO, {DIONYSOS, HERA},
+    TestAttack(LIGHT, APOLLO, {DIONYSUS, HERA},
             "     z     "
             "    ...    "
             "   .....   "
@@ -804,6 +822,338 @@ TEST(Apollo, Special) {
 
     EXPECT_EQ(state.hp(DARK,  ZEUS), 2);  // 5 - 3, direct horizontal attack
 }
+
+TEST(Aphrodite, Moves) {
+    TestMovement(LIGHT, APHRODITE,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  .......  "
+            " ......... "
+            "  +++++++  "
+            "   +++++   "
+            "    +++    "
+            "     A     "
+    );
+
+    TestMovement(LIGHT, APHRODITE,
+            "     .     "
+            "    +++    "
+            "   +++++   "
+            "  +++++++  "
+            " .+++A+++. "
+            "  +++++++  "
+            "   +++++   "
+            "    +++    "
+            "     .     "
+    );
+
+    TestMovement(LIGHT, APHRODITE,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  oZ+....  "
+            " A+++..... "
+            "  +h+....  "
+            "   ++...   "
+            "    +..    "
+            "     .     "
+    );
+}
+
+TEST(Aphrodite, Attacks) {
+    TestAttack(LIGHT, APHRODITE, {APOLLO, POSEIDON},
+            "     .     "
+            "    ...    "
+            "   ..z..   "
+            "  ..p..h.  "
+            " ....A.... "
+            "  ...o...  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    );
+}
+
+// Aphrodite can swap with an ally anywhere on the board.
+TEST(Aphrodite, Special) {
+    State state = BoardTemplate(
+            "     .     "
+            "    M..    "
+            "   .H...   "
+            "  .......  "
+            " .....N... "
+            "  ...A...  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    ).ToState(LIGHT);
+
+    EXPECT_EQ(state.fx(LIGHT, HEPHAESTUS), SPEED_BOOST);
+    EXPECT_EQ(state.fx(LIGHT, APHRODITE),  SHIELDED);
+    EXPECT_EQ(state.fx(LIGHT, HERMES),     DAMAGE_BOOST);
+    EXPECT_EQ(state.fx(LIGHT, ATHENA),     UNAFFECTED);
+
+    ExecuteTurn(state, "A+d8");
+
+    EXPECT_EQ(state,
+        BoardTemplate(
+            "     .     "
+            "    A..    "
+            "   .H...   "
+            "  .......  "
+            " .....N... "
+            "  ...M...  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+        ).ToState(DARK));
+
+    // Auras are recomputed based on new positions:
+    EXPECT_EQ(state.fx(LIGHT, HEPHAESTUS), UNAFFECTED);
+    EXPECT_EQ(state.fx(LIGHT, APHRODITE),  DAMAGE_BOOST);
+    EXPECT_EQ(state.fx(LIGHT, HERMES),     SHIELDED);
+    EXPECT_EQ(state.fx(LIGHT, ATHENA),     SPEED_BOOST);
+}
+
+// Special rule 1: Aphrodite can swap on the turn she is summoned
+// (This is clarified under "special rules")
+TEST(Aphrodite, Special1) {
+    State state = State::Initial();
+    state.Place(LIGHT, POSEIDON, ParseField("d8"));
+
+    EXPECT_EQ(state.fi(LIGHT, POSEIDON), ParseField("d8"));
+
+    ExecuteTurn(state, "A@e1,A+d8");
+
+    EXPECT_EQ(state.fi(LIGHT, POSEIDON),  ParseField("e1"));
+    EXPECT_EQ(state.fi(LIGHT, APHRODITE), ParseField("d8"));
+}
+
+// Special rule 2: Aphrodite can use her special power on the turn she is summoned, even if
+// another god already moved:
+TEST(Aphrodite, Special2) {
+    State state = State::Initial();
+    state.Place(LIGHT, POSEIDON, ParseField("d8"));
+    state.Place(LIGHT, ZEUS, ParseField("e1"));
+
+    EXPECT_EQ(state.fi(LIGHT, POSEIDON), ParseField("d8"));
+
+    ExecuteTurn(state, "Z>e2,A@e1,A+d8");
+
+    EXPECT_EQ(state.fi(LIGHT, POSEIDON),  ParseField("e1"));
+    EXPECT_EQ(state.fi(LIGHT, APHRODITE), ParseField("d8"));
+}
+
+// Special rule 3: extra move after killing an enemy at their gate, does not allow
+// Aphrodite to swap!
+TEST(Aphrodite, Special3) {
+    State state = State::Initial();
+    state.Place(DARK,  ZEUS,      ParseField("e9"));
+    state.Place(LIGHT, ZEUS,      ParseField("e8"));
+    state.Place(LIGHT, APHRODITE, ParseField("e7"));
+
+    EXPECT_TRUE (FindTurn(state, "A+e8"));       // can swap as only move
+    EXPECT_TRUE (FindTurn(state, "Z!e9,A>e9"));  // can move after kill
+    EXPECT_FALSE(FindTurn(state, "Z!e9,A+e8"));  // cannot swap after kill
+}
+
+// Ares moves up to 3 spaces in any single direction (same as Hades).
+TEST(Ares, Moves) {
+    TestMovement(LIGHT, ARES,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  .......  "
+            " ......... "
+            "  +..+..+  "
+            "   +.+.+   "
+            "    +++    "
+            "     R     "
+    );
+
+    TestMovement(LIGHT, ARES,
+            "     .     "
+            "    .+.    "
+            "   +.+.+   "
+            "  ..+++..  "
+            " .+++R+++. "
+            "  ..+++..  "
+            "   +.+.+   "
+            "    .+.    "
+            "     .     "
+    );
+
+    TestMovement(LIGHT, ARES,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  o......  "
+            " R+Z...... "
+            "  +......  "
+            "   +....   "
+            "    +..    "
+            "     .     "
+    );
+}
+
+// TODO: Ares attacks
+// TODO: Ares special
+
+// TODO: Hermes
+
+// TODO: Dionysus
+
+// TODO: Artemis
+
+// Hades moves up to 3 spaces in any single direction (same as Ares).
+TEST(Hades, Moves) {
+    TestMovement(LIGHT, HADES,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  .......  "
+            " ......... "
+            "  +..+..+  "
+            "   +.+.+   "
+            "    +++    "
+            "     S     "
+    );
+
+    TestMovement(LIGHT, HADES,
+            "     .     "
+            "    .+.    "
+            "   +.+.+   "
+            "  ..+++..  "
+            " .+++S+++. "
+            "  ..+++..  "
+            "   +.+.+   "
+            "    .+.    "
+            "     .     "
+    );
+
+    // Don't include enemies in this test, because they create additional
+    // special actions, which generate additional moves:
+
+    TestMovement(LIGHT, HADES,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  O......  "
+            " S+Z...... "
+            "  +......  "
+            "   +....   "
+            "    +..    "
+            "     .     "
+    );
+}
+
+TEST(Hades, Attacks) {
+    State state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  ..Hp...  "
+            " .m.So.... "
+            "  .zn.a..  "
+            "   ..d..   "
+            "    ...    "
+            "     .     "
+    ).ToState(LIGHT);
+
+    ExecuteTurn(state, "S!d5");
+
+    // Note 4 damage instead of 3 because of Hephaestus damage boost
+    EXPECT_EQ(state.hp(LIGHT, HEPHAESTUS),      9);  // friendly
+    EXPECT_EQ(state.hp(DARK,  HERMES),          5);  // out of range
+    EXPECT_EQ(state.hp(DARK,  POSEIDON),    7 - 4);  // hit
+    EXPECT_EQ(state.hp(DARK,  APOLLO),      6 - 4);  // hit
+    EXPECT_EQ(state.hp(DARK,  ATHENA),          0);  // killed
+    EXPECT_EQ(state.hp(DARK,  ZEUS),       10 - 4);  // hit
+    EXPECT_EQ(state.hp(DARK,  APHRODITE),       6);  // out of range
+    EXPECT_EQ(state.hp(DARK,  DIONYSUS),        4);  // out of range
+}
+
+// Chains of Tartarus: bind 1 enemy per turn after landing next to or attacking
+// an enemy so they cannot move or attack as Hades remains adjacent.
+TEST(Hades, Special) {
+    // This test case is essentially the example from the rulebook.
+    State state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   .O...   "
+            "  .ez.h..  "
+            " ......... "
+            "  .......  "
+            "   .S...   "
+            "    ...    "
+            "     .     "
+    ).ToState(LIGHT);
+
+    EXPECT_TRUE (FindTurn(state, "S>d5"));
+    EXPECT_TRUE (FindTurn(state, "S>d5,S+c6"));
+    EXPECT_TRUE (FindTurn(state, "S>d5,S+d6"));
+    EXPECT_FALSE(FindTurn(state, "S>d5,S+e6"));       // empty
+    EXPECT_FALSE(FindTurn(state, "S>d5,S+f6"));       // not adjacent
+
+    ExecuteTurn(state, "S>d5,S+c6");  // chain Hera at c6
+
+    EXPECT_EQ(state.fx(DARK, HERA), CHAINED);
+    EXPECT_EQ(state.fx(DARK, ZEUS), UNAFFECTED);
+    EXPECT_EQ(state.fx(DARK, HEPHAESTUS), UNAFFECTED);
+    EXPECT_THAT(MoveDestinations(state, HERA), IsEmpty());
+    EXPECT_THAT(MoveDestinations(state, ZEUS), Not(IsEmpty()));
+    EXPECT_THAT(MoveDestinations(state, HEPHAESTUS), Not(IsEmpty()));
+    EXPECT_THAT(AttackTargets(state, HERA), IsEmpty());
+    EXPECT_THAT(AttackTargets(state, ZEUS), Contains(HADES));
+
+    state.EndTurn();  // skip dark turn
+
+    EXPECT_FALSE(FindTurn(state, "S!d5,S+c6"));  // cannot chain Hera twice
+
+    ExecuteTurn(state, "S!d5,S+d6");  // attack + chain Zeus at d6
+
+    EXPECT_EQ(state.hp(DARK, HERA),        8 - 3);
+    EXPECT_EQ(state.hp(DARK, ZEUS),       10 - 3);
+    EXPECT_EQ(state.hp(DARK, HEPHAESTUS),      9);
+    EXPECT_EQ(state.fx(DARK, HERA), CHAINED);
+    EXPECT_EQ(state.fx(DARK, ZEUS), CHAINED);
+    EXPECT_EQ(state.fx(DARK, HEPHAESTUS), UNAFFECTED);
+    EXPECT_THAT(MoveDestinations(state, HERA), IsEmpty());
+    EXPECT_THAT(MoveDestinations(state, ZEUS), IsEmpty());
+    EXPECT_THAT(MoveDestinations(state, HEPHAESTUS), Not(IsEmpty()));
+    EXPECT_THAT(AttackTargets(state, HERA), IsEmpty());
+    EXPECT_THAT(AttackTargets(state, ZEUS), IsEmpty());
+
+    state.EndTurn();  // skip dark turn
+
+    ExecuteTurn(state, "S>c5");  // move does not change chains
+
+    EXPECT_EQ(state.fx(DARK, HERA), CHAINED);
+    EXPECT_EQ(state.fx(DARK, ZEUS), CHAINED);
+    EXPECT_EQ(state.fx(DARK, HEPHAESTUS), UNAFFECTED);
+
+    state.EndTurn();  // skip dark turn
+
+    ExecuteTurn(state, "S>e5,S+f6");  // move + chain Hephaestus at d6
+
+    EXPECT_EQ(state.fx(DARK, HERA), UNAFFECTED);
+    EXPECT_EQ(state.fx(DARK, ZEUS), CHAINED);
+    EXPECT_EQ(state.fx(DARK, HEPHAESTUS), CHAINED);
+    EXPECT_THAT(MoveDestinations(state, HERA), Not(IsEmpty()));
+    EXPECT_THAT(MoveDestinations(state, ZEUS), IsEmpty());
+    EXPECT_THAT(MoveDestinations(state, HEPHAESTUS), IsEmpty());
+    EXPECT_THAT(AttackTargets(state, ZEUS), IsEmpty());
+    EXPECT_THAT(AttackTargets(state, HEPHAESTUS), IsEmpty());
+}
+
+// TODO: Hades special
+//      - summon, chain
+//      - summon, chain, attack, chain
+//      - summon, chain, move, chain
+//      - move, chain, summon
+//      - attack, chain, move, chain (special rule 3)
+//      - hades gets killed (should unchain all)
 
 TEST(Athena, Moves) {
     TestMovement(LIGHT, ATHENA,
@@ -857,14 +1207,54 @@ TEST(Athena, Attacks) {
     );
 }
 
-// TODO: athena special (protecting against damage)
+// Aegis Shield: friends on adjacent spaces are immune to damage.
+//
+// There are some special tests regarding Athena's aura interacting
+// with area of effect damage under the Poseidon test cases too.
+TEST(Athena, Special) {
+    State state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   ..zZ.   "
+            "  ..TN.O.  "
+            " ......... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    ).ToState(DARK);
 
-// TODO: aphrodite, ares, hermes, dionysus, artemis, hades, athena
+    EXPECT_TRUE (state.has_fx(LIGHT, ZEUS,    SHIELDED));
+    EXPECT_TRUE (state.has_fx(LIGHT, ARTEMIS, SHIELDED));
+    EXPECT_FALSE(state.has_fx(LIGHT, ATHENA,  SHIELDED));  // cannot shield self
+    EXPECT_FALSE(state.has_fx(LIGHT, APOLLO,  SHIELDED));  // out of range
+
+    ExecuteTurn(state, "Z!e6");
+    EXPECT_EQ(state.hp(LIGHT, ZEUS), 10);  // no damage taken
+}
+
+// TODO: aphrodite swapping enables hades chain ability
+// TODO: aphrodite swapping activates ares area damage
+// TODO: aphrodite swapping unchains both her and her ally
+// TODO: aphrodite swapping with friendly Hades unchains enemies that are no longer
+//       next to him (this should already work, but test it)
+
+// TODO: ares, hermes, dionysus, artemis, hades
 
 // TODO: dionysis cannot kill enemy protected by athena
+// TODO: dionysis can move twice when adjacent to hermes
 // TODO: arthemis cannot use withering moon on enemy protected athena
 // TODO: hermes CAN kill enemy protected by athena when killing athena on the same turn
 // TODO: hades CAN bind enemy protected by athena
+
+// TODO:
+//   - "Aphrodite's ability counts as a move for the swapped friend, so Hades' Bind and Ares'
+//      damage can take effect after the switch."
+//   - "Aphrodite's ability can also be used to free a friend from Hades' Bind,
+//      so that Hades will have to recapture the swapped piece on his turn."
+//          => is this also true if the swapped stays adjacent to Hades?
+//          => does Aphrodite get freed if she stays adjacent to Hades?
+//          (see questions.txt)
 
 // TODO: Poseidon/Hades test:
 //      - when Hades gets knocked back, chains should stay on enemies that remain

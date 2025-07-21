@@ -33,15 +33,19 @@ struct Area {
                     r2 = r - 1;
                 }
                 break;
-            case DIONYSOS:
+            case DIONYSUS:
                 c1 = c2 = c;
                 r1 = r2 = r;
                 // TODO
                 break;
             case HADES:
-                c1 = c2 = c;
-                r1 = r2 = r;
-                // TODO
+                {
+                    int rng = pantheon[god].rng;
+                    r1 = r - rng;
+                    c1 = c - rng;
+                    r2 = r + rng;
+                    c2 = c + rng;
+                }
                 break;
             default:
                 assert(false);
@@ -54,6 +58,10 @@ struct Area {
     }
 };
 
+void GenerateSpecialsHades(
+        const State &state, std::vector<Turn> &turns, Turn &turn,
+        bool hades_may_move_after, bool may_summon_after);
+
 void GenerateSummons(
     const State &state, std::vector<Turn> &turns, Turn &turn,
     bool may_move_after);
@@ -64,6 +72,9 @@ void GenerateMovesOne(
 ) {
     const God god = state.GodAt(field);
     assert(god < GOD_COUNT);
+
+    // Cannot move when chained by Hades.
+    if (state.has_fx(state.NextPlayer(), god, CHAINED)) return;
 
     // TODO: support Hermes movement boost! (make sure Artemis, Dionysus work correctly)
     const int max_dist = pantheon[god].mov;
@@ -77,10 +88,15 @@ void GenerateMovesOne(
         };
         turn.actions[turn.naction++] = action;
         turns.push_back(turn);
-        if (may_summon_after) {
+        if (may_summon_after || god == HADES) {
             State new_state = state;
             ExecuteAction(new_state, action);
-            GenerateSummons(new_state, turns, turn, false);
+            if (may_summon_after) {
+                GenerateSummons(new_state, turns, turn, false);
+            }
+            if (god == HADES) {
+                GenerateSpecialsHades(new_state, turns, turn, false, may_summon_after);
+            }
         }
         // TODO: if Ares kills an enemy at their gate by moving next to
         // them, he should get to move again
@@ -132,7 +148,7 @@ void GenerateMovesOne(
             }
         }
     }
-    // TODO: special moves (Hades), Hermes
+    // TODO: special moves: Hermes
 }
 
 void GenerateMovesAll(
@@ -158,26 +174,43 @@ void GenerateAttacksOne(
     const God god = state.GodAt(field);
     assert(god < GOD_COUNT);
 
+    // Cannot attack when chained by Hades.
+    if (state.has_fx(player, god, CHAINED)) return;
+
     int max_dist = pantheon[god].rng;
     std::span<const Dir> dirs = pantheon[god].atk_dirs;
 
     auto add_action_with_area = [&](field_t field, Area area) {
         Action action{
-            .type      = Action::ATTACK,
-            .god       = god,
-            .field     = field,
+            .type   = Action::ATTACK,
+            .god    = god,
+            .field  = field,
         };
         turn.actions[turn.naction++] = action;
         turns.push_back(turn);
-        if (area.Contains(gate_index[opponent])) {
+
+        field_t opponent_gate = gate_index[opponent];
+        bool attack_enemy_at_gate =
+                area.Contains(opponent_gate) &&
+                state.PlayerAt(opponent_gate) == opponent;
+
+        if (attack_enemy_at_gate || god == HADES) {
             State new_state = state;
             ExecuteAction(new_state, action);
-            if (!new_state.IsOccupied(field)) {
+
+            bool may_move_after = attack_enemy_at_gate && !new_state.IsOccupied(opponent_gate);
+
+            if (may_move_after) {
                 // Special rule 3: when you kill an enemy on the opponent's
                 // gate, you get an extra move.
                 GenerateMovesAll(new_state, turns, turn, false);
             }
+
+            if (god == HADES) {
+                GenerateSpecialsHades(new_state, turns, turn, may_move_after, false);
+            }
         }
+
         --turn.naction;
     };
     auto add_action = [&](field_t field) {
@@ -264,6 +297,73 @@ void GenerateAttacksAll(
     }
 }
 
+void GenerateSpecialsAphrodite(const State &state, std::vector<Turn> &turns, Turn &turn) {
+    const Player player = state.NextPlayer();
+    const field_t src = state.fi(player, APHRODITE);
+    if (src == -1) return;  // Aphrodite not on the board
+
+    // Find ally to swap with:
+    for (field_t dst = 0; dst < FIELD_COUNT; ++dst) {
+        if (state.PlayerAt(dst) == player && src != dst) {
+            Action action{
+                .type  = Action::SPECIAL,
+                .god   = APHRODITE,
+                .field = dst,
+            };
+            turn.actions[turn.naction++] = action;
+            turns.push_back(turn);
+            if (state.GodAt(dst) == HADES) {
+                State new_state = state;
+                ExecuteAction(new_state, action);
+                GenerateSpecialsHades(new_state, turns, turn, false, false);
+            }
+            --turn.naction;
+        }
+    }
+}
+
+// Hades can use his special move (chain adjacent enemy) after:
+//
+//  - he is summoned (he may move after, and possibly special again)
+//  - he moved (when moving from the gate, summoning afterwards is allowed)
+//  - he attacked
+//  - he was swapped by Aphrodite
+//
+void GenerateSpecialsHades(
+        const State &state, std::vector<Turn> &turns, Turn &turn,
+        bool hades_may_move_after, bool may_summon_after) {
+    const Player player = state.NextPlayer();
+    const Player opponent = Other(player);
+    const field_t src = state.fi(player, HADES);
+    assert(src != -1);
+
+    // Find enemy to chain:
+    for (field_t dst : Neighbors(src)) {
+        God enemy = state.GodAt(dst);
+        if (enemy != GOD_COUNT && state.PlayerAt(dst) == opponent &&
+                !state.has_fx(opponent, enemy, CHAINED)) {
+            Action action{
+                .type  = Action::SPECIAL,
+                .god   = HADES,
+                .field = dst,
+            };
+            turn.actions[turn.naction++] = action;
+            turns.push_back(turn);
+            if (hades_may_move_after || may_summon_after) {
+                State new_state = state;
+                ExecuteAction(new_state, action);
+                if (hades_may_move_after) {
+                    GenerateMovesOne(new_state, turns, turn, src, false);
+                }
+                if (may_summon_after) {
+                    GenerateSummons(new_state, turns, turn, false);
+                }
+            }
+            --turn.naction;
+        }
+    }
+}
+
 void GenerateSummons(
     const State &state, std::vector<Turn> &turns, Turn &turn,
     bool may_move_after
@@ -276,9 +376,9 @@ void GenerateSummons(
     for (int g = 0; g != GOD_COUNT; ++g) {
         if (state.IsSummonable(player, (God) g)) {
             Action action{
-                .type      = Action::SUMMON,
-                .god       = AsGod(g),
-                .field     = gate,
+                .type  = Action::SUMMON,
+                .god   = AsGod(g),
+                .field = gate,
             };
             turn.actions[turn.naction++] = action;
             turns.push_back(turn);
@@ -290,6 +390,14 @@ void GenerateSummons(
             }
 
             GenerateAttacksOne(new_state, turns, turn, gate);
+
+            if (g == APHRODITE) {
+                GenerateSpecialsAphrodite(new_state, turns, turn);
+            }
+
+            if (g == HADES) {
+                GenerateSpecialsHades(new_state, turns, turn, true, false);
+            }
 
             turn.naction--;
         }
@@ -309,6 +417,9 @@ std::vector<Turn> GenerateTurns(const State &state) {
     assert(turn.naction == 0);
 
     GenerateAttacksAll(state, turns, turn);
+    assert(turn.naction == 0);
+
+    GenerateSpecialsAphrodite(state, turns, turn);
     assert(turn.naction == 0);
 
     if (turns.empty()) {
@@ -354,7 +465,7 @@ static int GetDamage(const State &state, Player player, God god, field_t target)
     }
 
     // Hephaestus damage boost
-    if (state.fx(player, god) & DAMAGE_BOOST) ++damage;
+    if (state.has_fx(player, god, DAMAGE_BOOST)) ++damage;
 
     return damage;
 }
@@ -362,7 +473,7 @@ static int GetDamage(const State &state, Player player, God god, field_t target)
 static void DamageField(State &state, field_t field, Player opponent, int damage) {
     assert(field != -1 && state.PlayerAt(field) == opponent);
 
-    if (state.fx(opponent, state.GodAt(field)) & SHIELDED) {
+    if (state.has_fx(opponent, state.GodAt(field), SHIELDED)) {
         // Athena protects against damage
     } else {
         state.DealDamage(opponent, field, damage);
@@ -410,6 +521,34 @@ static void DamageArea(State &state, Area area, Player opponent, int damage, int
     }
 }
 
+// Executes Aphrodite's special ability: swapping with a friendly god
+// anywhere on the board.
+//
+// This is carefully designed to work correctly with Hades chain effect:
+//
+//  - When Aphrodite swaps with an ally, both are freed of enemy Hades.
+//
+//  - When Aphrodite swaps with a friendly Hades, enemies that were chained are
+//    kept in chains only if they remain adjacent; this is handled already
+//    by State::Move().
+//
+//    (Note that Hades may chain a new enemy in that case, which is
+//    encoded with a separate special ability, so not handled here.)
+//
+static void AphroditeSwap(State &state, field_t src, field_t dst) {
+    assert(src != -1 && dst != -1 && src != dst);
+    assert(state.GodAt(src) == APHRODITE);
+    God ally = state.GodAt(dst);
+    assert(ally != GOD_COUNT);
+
+    Player player = state.NextPlayer();
+    assert(state.PlayerAt(src) == player && state.PlayerAt(dst) == player);
+
+    state.Remove(player, APHRODITE);
+    state.Move(player, ally, src);
+    state.Place(player, APHRODITE, dst);
+}
+
 void ExecuteAction(State &state, const Action &action) {
     // TODO? check game is not over yet? (should update movegen to match)
     Player player   = state.NextPlayer();
@@ -441,7 +580,18 @@ void ExecuteAction(State &state, const Action &action) {
             break;
 
         case Action::SPECIAL:
-            // TODO!
+            switch (action.god) {
+                case APHRODITE:
+                    AphroditeSwap(state, state.fi(player, APHRODITE), action.field);
+                    break;
+
+                case HADES:
+                    state.ChainAt(action.field);
+                    break;
+
+                default:
+                    assert(false);
+            }
             break;
 
         default:

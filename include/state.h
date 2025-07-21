@@ -142,11 +142,11 @@ enum God : uint8_t {
     APHRODITE,   //  5
     ARES,        //  6
     HERMES,      //  7
-    DIONYSOS,    //  8
+    DIONYSUS,    //  8
     ARTEMIS,     //  9
     HADES,       // 10
     ATHENA,      // 11
-    GOD_COUNT
+    GOD_COUNT    // 12
 };
 
 static_assert(GOD_COUNT == 12);
@@ -229,6 +229,9 @@ public:
     int hp(Player player, God god) const { return gods[player][god].hp; }
     int fi(Player player, God god) const { return gods[player][god].fi; }
     StatusFx fx(Player player, God god) const { return gods[player][god].fx; }
+    bool has_fx(Player player, God god, StatusFx mask) const {
+        return (fx(player, god) & mask) == mask;
+    }
 
     Player NextPlayer() const { return player; }
 
@@ -262,6 +265,24 @@ public:
 
     uint8_t DealDamage(Player player, field_t field, int damage);
 
+    void Unchain(Player player, God god) {
+        RemoveFx(player, god, CHAINED);
+    }
+
+    void UnchainAt(field_t field) {
+        assert(0 <= field && field < FIELD_COUNT && fields[field].occupied);
+        Unchain(fields[field].player, fields[field].god);
+    }
+
+    void Chain(Player player, God god) {
+        AddFx(player, god, CHAINED);
+    }
+
+    void ChainAt(field_t field) {
+        assert(0 <= field && field < FIELD_COUNT && fields[field].occupied);
+        Chain(fields[field].player, fields[field].god);
+    }
+
     void EndTurn() {
         player = Other(player);
     }
@@ -286,10 +307,6 @@ private:
     void RemoveFx(Player player, God god, StatusFx old_fx) {
         StatusFx &fx = gods[player][god].fx;
         fx = static_cast<StatusFx>(fx & ~old_fx);
-    }
-
-    bool HasFx(Player player, God god, StatusFx fx) const {
-        return (gods[player][god].fx & fx) == fx;
     }
 
     GodState    gods[2][GOD_COUNT];

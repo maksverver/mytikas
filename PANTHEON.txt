@@ -8,7 +8,7 @@
  6  Aphrodite     A  6 HP  -  a  6 HP  - 🌹
  7  aRes          R  5 HP  -  r  5 HP  - ⚔️
  8  herMes        M  5 HP  -  m  5 HP  - 🪽
- 9  Dionysos      D  4 HP  -  d  4 HP  - 🍇
+ 9  Dionysus      D  4 HP  -  d  4 HP  - 🍇
 10  arTemis       T  4 HP  -  t  4 HP  - 🦌
 11  hadeS         S  3 HP  -  s  3 HP  - 🐕
 12  atheNa        N  3 HP  -  n  3 HP  - 🛡️

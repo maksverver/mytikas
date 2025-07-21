@@ -114,7 +114,7 @@ constexpr GodInfo pantheon[GOD_COUNT] = {
     {"Aphrodite",  'A', "🌹",  6,   3,  6,  1, false,     false,     all_dirs,    all_dirs,    UNAFFECTED   },
     {"aRes",       'R', "⚔️",  5,   3,  5,  3, true,      true,      all_dirs,    all_dirs,    UNAFFECTED   },
     {"herMes",     'M', "🪽",  5,   3,  3,  2, false,     true,      all_dirs,    all_dirs,    SPEED_BOOST  },
-    {"Dionysos",   'D', "🍇",  4,   1,  4,  0, false,     false,     knight_dirs, no_dirs,     UNAFFECTED   },
+    {"Dionysus",   'D', "🍇",  4,   1,  4,  0, false,     false,     knight_dirs, no_dirs,     UNAFFECTED   },
     {"arTemis",    'T', "🦌",  4,   2,  4,  2, false,     true,      all_dirs,    diag_dirs,   UNAFFECTED   },
     {"hadeS",      'S', "🐕",  3,   3,  3,  1, true,      false,     all_dirs,    no_dirs,     UNAFFECTED   },
     {"atheNa",     'N', "🛡️",  3,   1,  3,  3, false,     true,      all_dirs,    all_dirs,    SHIELDED     },
@@ -267,6 +267,8 @@ void State::Move(Player player, God god, field_t dst) {
     // TODO: add support for Dionysus jumping on a piece
     assert(dst != -1 && !fields[dst].occupied);
 
+    Unchain(player, god); // moving always removes Hades chain
+
     GodState &gs = gods[player][god];
     field_t src = gs.fi;
     assert(src != -1);
@@ -289,6 +291,12 @@ void State::Move(Player player, God god, field_t dst) {
                 God ally = GodAt(f);
                 RemoveFx(player, ally, pantheon[god].aura);
                 RemoveFx(player, god, pantheon[ally].aura);
+            } else if (god == HADES) {
+                God enemy = GodAt(f);
+                if (enemy != GOD_COUNT) {
+                    // Unchain enemy when Hades moves away.
+                    Unchain(Other(player), enemy);
+                }
             }
         },
         [&](field_t f) {
@@ -299,8 +307,6 @@ void State::Move(Player player, God god, field_t dst) {
                 AddFx(player, god, pantheon[ally].aura);
             }
         });
-
-    // TODO: update Hades chains
 }
 
 uint8_t State::DealDamage(Player player, field_t field, int damage) {
