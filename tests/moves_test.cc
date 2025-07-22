@@ -1105,7 +1105,7 @@ TEST(Ares, SpecialOnSummon) {
 }
 
 // When Aphrodite swaps with Ares, he does damage when he lands on the new location.
-TEST(Ares, SpecialOnSwap) {
+TEST(Ares, SpecialAfterAphroditeSwaps) {
     State state = BoardTemplate(
             "     .     "
             "    ...    "
@@ -1410,6 +1410,37 @@ TEST(Hades, SpecialProtectedByAthena) {
     EXPECT_THAT(TurnStrings(state), Contains("S>e2,S+e3"));
 }
 
+// Aphrodite swapping with Hades allows him to chain another enemy,
+// preserving chains to adjacent enemies (only).
+TEST(Hades, SpecialAfterAphroditeSwaps) {
+    State state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  ...z...  "
+            " ...oAe... "
+            "  ...S...  "
+            "   ..p..   "
+            "    ...    "
+            "     .     "
+    ).ToState(LIGHT);
+
+    state.Chain(DARK, APOLLO);
+    state.Chain(DARK, POSEIDON);
+
+    EXPECT_EQ(state.fx(DARK, ZEUS),     UNAFFECTED);
+    EXPECT_EQ(state.fx(DARK, APOLLO),   CHAINED);
+    EXPECT_EQ(state.fx(DARK, HERA),     UNAFFECTED);
+    EXPECT_EQ(state.fx(DARK, POSEIDON), CHAINED);
+
+    ExecuteTurn(state, "A+e4,S+e6");
+
+    EXPECT_EQ(state.fx(DARK, ZEUS),     CHAINED);
+    EXPECT_EQ(state.fx(DARK, APOLLO),   CHAINED);
+    EXPECT_EQ(state.fx(DARK, HERA),     UNAFFECTED);
+    EXPECT_EQ(state.fx(DARK, POSEIDON), UNAFFECTED);
+}
+
 TEST(Athena, Moves) {
     TestMovement(LIGHT, ATHENA,
             "     .     "
@@ -1495,6 +1526,3 @@ TEST(Athena, Special) {
 // TODO: dionysis can move twice when adjacent to hermes
 // TODO: arthemis cannot use withering moon on enemy protected athena
 // TODO: hermes CAN kill enemy protected by athena when killing athena on the same turn
-
-// Aphrodite TODO (or at respective heros)
-//   - swap with Hades allows him to bind
