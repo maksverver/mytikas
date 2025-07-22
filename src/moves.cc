@@ -60,7 +60,7 @@ struct Area {
 
 void GenerateSpecialsHades(
         const State &state, std::vector<Turn> &turns, Turn &turn,
-        bool hades_may_move_after, bool may_summon_after);
+        bool hades_may_move_after, bool hades_my_attack_after, bool may_summon_after);
 
 void GenerateSummons(
     const State &state, std::vector<Turn> &turns, Turn &turn,
@@ -95,7 +95,7 @@ void GenerateMovesOne(
                 GenerateSummons(new_state, turns, turn, false);
             }
             if (god == HADES) {
-                GenerateSpecialsHades(new_state, turns, turn, false, may_summon_after);
+                GenerateSpecialsHades(new_state, turns, turn, false, false, may_summon_after);
             }
         }
         // TODO: if Ares kills an enemy at their gate by moving next to
@@ -207,7 +207,7 @@ void GenerateAttacksOne(
             }
 
             if (god == HADES) {
-                GenerateSpecialsHades(new_state, turns, turn, may_move_after, false);
+                GenerateSpecialsHades(new_state, turns, turn, may_move_after, false, false);
             }
         }
 
@@ -315,7 +315,7 @@ void GenerateSpecialsAphrodite(const State &state, std::vector<Turn> &turns, Tur
             if (state.GodAt(dst) == HADES) {
                 State new_state = state;
                 ExecuteAction(new_state, action);
-                GenerateSpecialsHades(new_state, turns, turn, false, false);
+                GenerateSpecialsHades(new_state, turns, turn, false, false, false);
             }
             --turn.naction;
         }
@@ -331,7 +331,7 @@ void GenerateSpecialsAphrodite(const State &state, std::vector<Turn> &turns, Tur
 //
 void GenerateSpecialsHades(
         const State &state, std::vector<Turn> &turns, Turn &turn,
-        bool hades_may_move_after, bool may_summon_after) {
+        bool hades_may_move_after, bool hades_may_attack_after, bool may_summon_after) {
     const Player player = state.NextPlayer();
     const Player opponent = Other(player);
     const field_t src = state.fi(player, HADES);
@@ -354,6 +354,9 @@ void GenerateSpecialsHades(
                 ExecuteAction(new_state, action);
                 if (hades_may_move_after) {
                     GenerateMovesOne(new_state, turns, turn, src, false);
+                }
+                if (hades_may_attack_after) {
+                    GenerateAttacksOne(new_state, turns, turn, src);
                 }
                 if (may_summon_after) {
                     GenerateSummons(new_state, turns, turn, false);
@@ -396,7 +399,7 @@ void GenerateSummons(
             }
 
             if (g == HADES) {
-                GenerateSpecialsHades(new_state, turns, turn, true, false);
+                GenerateSpecialsHades(new_state, turns, turn, may_move_after, true, false);
             }
 
             turn.naction--;

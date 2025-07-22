@@ -1147,13 +1147,83 @@ TEST(Hades, Special) {
     EXPECT_THAT(AttackTargets(state, HEPHAESTUS), IsEmpty());
 }
 
-// TODO: Hades special
-//      - summon, chain
-//      - summon, chain, attack, chain
-//      - summon, chain, move, chain
-//      - move, chain, summon
-//      - attack, chain, move, chain (special rule 3)
-//      - hades gets killed (should unchain all)
+// Hades can chain an enemy when summoning, then move or attack and chain again,
+// binding two enemies in one turn.
+TEST(Hades, SpecialAfterSummon) {
+    State state = State::Initial();
+    state.Place(DARK, ZEUS,       ParseField("d2"));
+    state.Place(DARK, HEPHAESTUS, ParseField("f2"));
+
+    EXPECT_TRUE(FindTurn(state, "S@e1"));
+    EXPECT_TRUE(FindTurn(state, "S@e1,S+d2"));
+    EXPECT_TRUE(FindTurn(state, "S@e1,S+d2,S>e2"));
+    EXPECT_TRUE(FindTurn(state, "S@e1,S+d2,S>e2,S+f2"));
+    EXPECT_TRUE(FindTurn(state, "S@e1,S>e2"));
+    EXPECT_TRUE(FindTurn(state, "S@e1,S>e2,S+f2"));
+    EXPECT_TRUE(FindTurn(state, "S@e1,S+d2,S!e1"));
+    EXPECT_TRUE(FindTurn(state, "S@e1,S+d2,S!e1,S+f2"));
+    EXPECT_TRUE(FindTurn(state, "S@e1,S!e1"));
+    EXPECT_TRUE(FindTurn(state, "S@e1,S!e1,S+f2"));
+}
+
+TEST(Hades, SpecialBeforeSummon) {
+    State state = State::Initial();
+    state.Place(LIGHT, HADES, ParseField("e1"));
+    state.Place(DARK,  ZEUS,  ParseField("d2"));
+
+    ExecuteTurn(state, "S>e2,S+d2,O@e1,O!d2");
+
+    EXPECT_EQ(state.fx(DARK, ZEUS), CHAINED);
+    EXPECT_EQ(state.hp(DARK, ZEUS), 10 - 3);  // 3 = 2 base + 1 Blazing Arrow bonus damage
+}
+
+// Special rule 3: if a player kills an enemy at their gate, then the player
+// may move again; this is another way Hades can bind two enemies in one turn.
+TEST(Hades, SpecialAfterKillingAtEnemyGate) {
+    //     d e f
+    // 9     n
+    // 8   z S p
+    // 7 . . . . .
+    State state = State::Initial();
+    state.Place(LIGHT, HADES,    ParseField("e8"));
+    state.Place(DARK,  ZEUS,     ParseField("d8"));
+    state.Place(DARK,  POSEIDON, ParseField("f8"));
+    state.Place(DARK,  ATHENA,   ParseField("e9"));
+
+    ExecuteTurn(state, "S!e8,S+d8,S>e7,S+f8");
+
+    EXPECT_TRUE(state.IsDead(DARK, ATHENA));
+    EXPECT_EQ(state.fx(DARK, ZEUS),     CHAINED);
+    EXPECT_EQ(state.fx(DARK, POSEIDON), CHAINED);
+    EXPECT_EQ(state.hp(DARK, ZEUS),      10 - 3);
+    EXPECT_EQ(state.hp(DARK, POSEIDON),   7 - 3);
+
+    ExecuteTurn(state, "R@e9,R!e7");
+
+    // If Hades gets killed, chained gods are released.
+    EXPECT_TRUE(state.IsDead(LIGHT, HADES));
+    EXPECT_EQ(state.fx(DARK, ZEUS),     UNAFFECTED);
+    EXPECT_EQ(state.fx(DARK, POSEIDON), UNAFFECTED);
+}
+
+// Hades can chain Athena and her shielded allies
+TEST(Hades, SpecialProtectedByAthena) {
+    State state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  .......  "
+            " ......... "
+            "  .......  "
+            "   ..n..   "
+            "    z..    "
+            "     S     "
+    ).ToState(LIGHT);
+
+    EXPECT_EQ(state.fx(DARK, ZEUS), SHIELDED);
+    EXPECT_THAT(TurnStrings(state), Contains("S!e1,S+d2"));
+    EXPECT_THAT(TurnStrings(state), Contains("S>e2,S+e3"));
+}
 
 TEST(Athena, Moves) {
     TestMovement(LIGHT, ATHENA,
@@ -1239,13 +1309,12 @@ TEST(Athena, Special) {
 // TODO: aphrodite swapping with friendly Hades unchains enemies that are no longer
 //       next to him (this should already work, but test it)
 
-// TODO: ares, hermes, dionysus, artemis, hades
+// TODO: ares, hermes, dionysus, artemis
 
 // TODO: dionysis cannot kill enemy protected by athena
 // TODO: dionysis can move twice when adjacent to hermes
 // TODO: arthemis cannot use withering moon on enemy protected athena
 // TODO: hermes CAN kill enemy protected by athena when killing athena on the same turn
-// TODO: hades CAN bind enemy protected by athena
 
 // TODO:
 //   - "Aphrodite's ability counts as a move for the swapped friend, so Hades' Bind and Ares'

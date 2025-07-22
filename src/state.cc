@@ -260,7 +260,16 @@ void State::Remove(Player player, God god, field_t field) {
             if (PlayerAt(f) == player) RemoveFx(player, GodAt(f), aura);
         }
     }
-    // TODO: if Hades is killed, remove chained effects
+
+    // When Hades is removed, remove CHAINED effect from adjacent enemies.
+    if (god == HADES) {
+        Player opponent = Other(player);
+        for (field_t f : Neighbors(field)) {
+            if (PlayerAt(f) == opponent) {
+                Unchain(opponent, GodAt(f));
+            }
+        }
+    }
 }
 
 void State::Move(Player player, God god, field_t dst) {
