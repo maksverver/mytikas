@@ -9,6 +9,7 @@
 
 namespace {
 
+constexpr int hermes_speed_boost = 1;
 constexpr int ares_special_dmg = 1;
 constexpr int ares_special_rng = 1;
 
@@ -180,14 +181,15 @@ void GenerateSummons(TurnBuilder &builder, bool may_move_after);
 
 void GenerateMovesOne(TurnBuilder &builder, field_t field, bool may_summon_after) {
     const State &state = builder.CurrentState();
+    const Player player = state.NextPlayer();
     const God god = state.GodAt(field);
     assert(god < GOD_COUNT);
 
     // Cannot move when chained by Hades.
-    if (state.has_fx(state.NextPlayer(), god, CHAINED)) return;
+    if (state.has_fx(player, god, CHAINED)) return;
 
-    // TODO: support Hermes movement boost! (make sure Artemis, Dionysus work correctly)
-    const int max_dist = pantheon[god].mov;
+    const int max_dist = pantheon[god].mov
+            + (state.has_fx(player, god, SPEED_BOOST) ? hermes_speed_boost : 0);
     std::span<const Dir> dirs = pantheon[god].mov_dirs;
 
     auto add_action = [&](field_t field) {
@@ -200,7 +202,7 @@ void GenerateMovesOne(TurnBuilder &builder, field_t field, bool may_summon_after
             GenerateSummons(builder, false);
         }
         if (god == ARES) {
-            GenerateSpecialsAres(builder, state.NextPlayer(), field);
+            GenerateSpecialsAres(builder, player, field);
         }
         if (god == HADES) {
             GenerateSpecialsHades(builder, false, false, may_summon_after);
@@ -339,7 +341,6 @@ void GenerateAttacksOne(TurnBuilder &builder, field_t field) {
 
     // The logic below is similar to GenerateMovesOne(), defined above.
     // Try to keep the two in sync.
-
     if (pantheon[god].atk_direct) {
         // Direct attacks only: scan each direction until we reach the end of
         // the board or an occupied field.

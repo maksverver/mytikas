@@ -884,6 +884,7 @@ TEST(Apollo, Special) {
     EXPECT_EQ(state.hp(DARK,  ZEUS), 2);  // 5 - 3, direct horizontal attack
 }
 
+// Aphrodite moves the same as Hermes
 TEST(Aphrodite, Moves) {
     TestMovement(LIGHT, APHRODITE,
             "     .     "
@@ -1183,11 +1184,117 @@ TEST(Ares, SpecialNotAfterPoseidonPush) {
     ASSERT_THAT(state.hp(DARK,  ZEUS), pantheon[ZEUS].hit);  // undamaged
 }
 
+// Hermes moves the same as Aphrodite
+TEST(Hermes, Moves) {
+    TestMovement(LIGHT, HERMES,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  .......  "
+            " ......... "
+            "  +++++++  "
+            "   +++++   "
+            "    +++    "
+            "     M     "
+    );
+
+    TestMovement(LIGHT, HERMES,
+            "     .     "
+            "    +++    "
+            "   +++++   "
+            "  +++++++  "
+            " .+++M+++. "
+            "  +++++++  "
+            "   +++++   "
+            "    +++    "
+            "     .     "
+    );
+
+    TestMovement(LIGHT, HERMES,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  oZ+....  "
+            " M+++..... "
+            "  +a+....  "
+            "   ++...   "
+            "    +..    "
+            "     .     "
+    );
+}
+
+TEST(Hermes, Attacks) {
+    TestAttack(LIGHT, HERMES, {DIONYSUS, APOLLO},
+            "     .     "
+            "    ...    "
+            "   d....   "
+            "  ...o...  "
+            " a...M..p. "
+            "  .......  "
+            "   ...r.   "
+            "    ...    "
+            "     .     "
+    );
+}
+
+TEST(Hermes, AttackTwice) {
+    State state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   ..e..   "
+            "  .......  "
+            " ..n.M.z.. "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+        ).ToState(LIGHT);
+
+    std::vector<std::string> turns = TurnStrings(state);
+    EXPECT_THAT(turns, Contains("M!e7"));
+    EXPECT_THAT(turns, Contains("M!c5"));
+    EXPECT_THAT(turns, Contains("M!g5"));
+    EXPECT_THAT(turns, Contains("M!c5,e7"));
+    EXPECT_THAT(turns, Contains("M!c5,g5"));
+    EXPECT_THAT(turns, Contains("M!e7,g5"));
+    EXPECT_THAT(turns, Not(Contains("M!e7,c5")));  // deduped
+    EXPECT_THAT(turns, Not(Contains("M!g5,c5")));  // deduped
+    EXPECT_THAT(turns, Not(Contains("M!g5,e7")));  // deduped
+    EXPECT_THAT(turns, Not(Contains("M!c5,e7,g5")));  // no more than 2 attacks
+}
+
+// TODO: hermes kills twice, one at the enemy gate
+
+TEST(Hermes, Special) {
+    State state = BoardTemplate(
+            "     z     "
+            "    ...    "
+            "   .....   "
+            "  .......  "
+            " ....R.... "
+            "  ...M...  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+        ).ToState(LIGHT);
+
+    std::vector<std::string> turns = TurnStrings(state);
+    EXPECT_THAT(turns, Contains("R>a5"));
+    EXPECT_THAT(turns, Contains("R>i5"));
+    EXPECT_THAT(turns, Not(Contains("R!e9")));  // attack range not boosted
+}
+
 // TODO: Hermes
+//              Double attack
+//              Double attack Athena?
+
+// TODO: hermes CAN kill enemy protected by athena when killing athena on the same turn
 
 // TODO: Dionysus
+// TODO: Dionysus test with speed boost from Hermes
 
 // TODO: Artemis
+// TODO: Artemis test with speed boost from Hermes
 
 // Hades moves up to 3 spaces in any single direction (same as Ares).
 TEST(Hades, Moves) {
@@ -1525,4 +1632,3 @@ TEST(Athena, Special) {
 // TODO: dionysis cannot kill enemy protected by athena
 // TODO: dionysis can move twice when adjacent to hermes
 // TODO: arthemis cannot use withering moon on enemy protected athena
-// TODO: hermes CAN kill enemy protected by athena when killing athena on the same turn
