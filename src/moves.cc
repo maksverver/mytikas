@@ -220,6 +220,10 @@ void GenerateAttacksOne(
 
     if (dirs.empty()) {
         // Area attacks. Handle specially.
+        //
+        // To limit the number of moves somewhat, only include attacks if the
+        // area contains at least one enemy, even though it still might have no
+        // effect when enemies are shielded by Athena.
         Area area = Area::Get(player, god, field);
         for (int r = area.r1; r <= area.r2; ++r) {
             for (int c = area.c1; c <= area.c2; ++c) {
