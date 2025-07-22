@@ -164,7 +164,7 @@ std::string State::Encode() const {
             if (gs.hp > 0 && gs.fi != -1) {
                 // Status effects except for CHAINED can be inferred from
                 // adjacent characters, so we only encode CHAINED:
-                res += base64_digits[gs.hp | ((gs.fx & CHAINED) ? 0x10 : 0)];
+                res += base64_digits[(gs.hp << 1) | ((gs.fx & CHAINED) ? 1 : 0)];
             }
         }
     }
@@ -211,8 +211,8 @@ std::optional<State> State::Decode(std::string_view sv) {
                 // Alive and in play
                 int hpfx;
                 if (!read(hpfx, (pantheon[g].hit + 1)*2)) return {};
-                gs.hp = hpfx & 0xf;
-                gs.fx = (hpfx & 0x10) ? CHAINED : UNAFFECTED;
+                gs.hp = hpfx >> 1;
+                gs.fx = (hpfx & 1) ? CHAINED : UNAFFECTED;
                 state.Place(AsPlayer(p), AsGod(g), fi - 1);
             }
         }
