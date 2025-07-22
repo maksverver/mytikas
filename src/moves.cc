@@ -1,8 +1,101 @@
+// This file contains logic to generate and execute valid turns.
+//
+// A turn is a sequence of actions that a single player may take before
+// passing the turn to the other player.
+
 #include "moves.h"
 
 #include <sstream>
 
 namespace {
+
+// Helper class to collect the list of valid turns. Each turn consists of a
+// sequence of actions, which is generated recursively. This class helps
+// maintain the intermediate sequence of actions and the corresponding state
+// after applying those actions to the initial state.
+class TurnBuilder {
+public:
+    TurnBuilder(std::vector<Turn> &turns, State initial_state) : turns(turns) {
+        turn.naction = 0;
+        states[0] = std::move(initial_state);
+        nstate = 1;
+    }
+
+    // Not copyable.
+    TurnBuilder(const TurnBuilder&) = delete;
+    TurnBuilder& operator=(const TurnBuilder&) = delete;
+
+    ~TurnBuilder() {
+        assert(turn.naction == 0);
+        assert(nstate == 1);
+    }
+
+    void PushAction(Action action) {
+        assert(turn.naction < Turn::MAX_ACTION);
+        turn.actions[turn.naction++] = std::move(action);
+    }
+
+    void PopAction() {
+        assert(turn.naction > 0);
+        --turn.naction;
+        if (nstate > turn.naction + 1) --nstate;
+    }
+
+    void AddTurn() {
+        turns.push_back(turn);
+    }
+
+    const State &CurrentState() {
+        assert(nstate > 0);
+        while (nstate <= turn.naction) {
+            states[nstate] = states[nstate - 1];
+            ExecuteAction(states[nstate], turn.actions[nstate - 1]);
+            ++nstate;
+        }
+        return states[nstate - 1];
+    };
+
+    // Helper class that pushes an Action when created, and pops it when
+    // destroyed. This allows creating lexically scoped action without having
+    // to manually balancing the push and pop operations.
+    class Scoped {
+    public:
+        Scoped(TurnBuilder &builder, Action action, bool add_immediately=true) : builder(builder) {
+            builder.PushAction(action);
+            if (add_immediately) builder.AddTurn();
+        }
+
+        ~Scoped() {
+            builder.PopAction();
+        }
+
+    private:
+        TurnBuilder &builder;
+    };
+
+    Scoped MakeScoped(Action action, bool add_immediately=true) {
+        return Scoped(*this, action, add_immediately);
+    }
+
+private:
+    std::vector<Turn> &turns;
+
+    Turn turn;
+
+    // states[n] is the state obtained after `n` actions. These states are
+    // computed lazily, since we don't always need to generate the state to
+    // determine a turn is valid.
+    //
+    // Invariant: nstates <= turn.naction + 1
+    //
+    // Important: the reference returned by CurrentState() MUST NOT be
+    // invalidated by mutating calls to PushAction(), PopAction() or AddTurn()
+    // (unless the active state itself is popped), which is why we use a fixed
+    // size array here, instead of e.g. std::vector<>.
+    std::array<State, Turn::MAX_ACTION + 1> states;
+    size_t nstate = 0;
+};
+
 
 // A rectangular area to be attacked. Includes all fields with coords (r, c)
 // where r1 <= r <= r2 and c1 <= c <= c2 (i.e., all endpoints are inclusive).
@@ -59,17 +152,13 @@ struct Area {
 };
 
 void GenerateSpecialsHades(
-        const State &state, std::vector<Turn> &turns, Turn &turn,
-        bool hades_may_move_after, bool hades_my_attack_after, bool may_summon_after);
+    TurnBuilder &builder, bool hades_may_move_after,
+    bool hades_may_attack_after, bool may_summon_after);
 
-void GenerateSummons(
-    const State &state, std::vector<Turn> &turns, Turn &turn,
-    bool may_move_after);
+void GenerateSummons(TurnBuilder &builder, bool may_move_after);
 
-void GenerateMovesOne(
-    const State &state, std::vector<Turn> &turns, Turn &turn,
-    field_t field, bool may_summon_after
-) {
+void GenerateMovesOne(TurnBuilder &builder, field_t field, bool may_summon_after) {
+    const State &state = builder.CurrentState();
     const God god = state.GodAt(field);
     assert(god < GOD_COUNT);
 
@@ -81,26 +170,19 @@ void GenerateMovesOne(
     std::span<const Dir> dirs = pantheon[god].mov_dirs;
 
     auto add_action = [&](field_t field) {
-        Action action{
+        auto scoped_action = builder.MakeScoped(Action{
             .type      = Action::MOVE,
             .god       = god,
             .field     = field,
-        };
-        turn.actions[turn.naction++] = action;
-        turns.push_back(turn);
-        if (may_summon_after || god == HADES) {
-            State new_state = state;
-            ExecuteAction(new_state, action);
-            if (may_summon_after) {
-                GenerateSummons(new_state, turns, turn, false);
-            }
-            if (god == HADES) {
-                GenerateSpecialsHades(new_state, turns, turn, false, false, may_summon_after);
-            }
+        });
+        if (may_summon_after) {
+            GenerateSummons(builder, false);
+        }
+        if (god == HADES) {
+            GenerateSpecialsHades(builder, false, false, may_summon_after);
         }
         // TODO: if Ares kills an enemy at their gate by moving next to
         // them, he should get to move again
-        --turn.naction;
     };
 
     // The logic below is similar to GenerateAttacksOne(), defined below.
@@ -151,24 +233,20 @@ void GenerateMovesOne(
     // TODO: special moves: Hermes
 }
 
-void GenerateMovesAll(
-    const State &state, std::vector<Turn> &turns, Turn &turn,
-    bool may_summon_after
-) {
+void GenerateMovesAll(TurnBuilder &builder, bool may_summon_after) {
+    const State &state = builder.CurrentState();
     const Player player = state.NextPlayer();
     const field_t gate = gate_index[player];
-    for (field_t i = 0; i < FIELD_COUNT; ++i) {
-        if (state.PlayerAt(i) == player) {
-            GenerateMovesOne(state, turns, turn, i, i == gate && may_summon_after);
+    for (field_t field = 0; field < FIELD_COUNT; ++field) {
+        if (state.PlayerAt(field) == player) {
+            GenerateMovesOne(builder, field, field == gate && may_summon_after);
         }
     }
     // TODO: support Hermes movement boost!
 }
 
-void GenerateAttacksOne(
-    const State &state, std::vector<Turn> &turns, Turn &turn,
-    field_t field
-) {
+void GenerateAttacksOne(TurnBuilder &builder, field_t field) {
+    const State &state = builder.CurrentState();
     const Player player = state.NextPlayer();
     const Player opponent = Other(player);
     const God god = state.GodAt(field);
@@ -181,37 +259,27 @@ void GenerateAttacksOne(
     std::span<const Dir> dirs = pantheon[god].atk_dirs;
 
     auto add_action_with_area = [&](field_t field, Area area) {
-        Action action{
+        auto scoped_action = builder.MakeScoped(Action{
             .type   = Action::ATTACK,
             .god    = god,
             .field  = field,
-        };
-        turn.actions[turn.naction++] = action;
-        turns.push_back(turn);
+        });
 
         field_t opponent_gate = gate_index[opponent];
-        bool attack_enemy_at_gate =
+        bool may_move_after =
                 area.Contains(opponent_gate) &&
-                state.PlayerAt(opponent_gate) == opponent;
+                state.PlayerAt(opponent_gate) == opponent &&
+                builder.CurrentState().IsOccupied(opponent_gate) == false;
 
-        if (attack_enemy_at_gate || god == HADES) {
-            State new_state = state;
-            ExecuteAction(new_state, action);
-
-            bool may_move_after = attack_enemy_at_gate && !new_state.IsOccupied(opponent_gate);
-
-            if (may_move_after) {
-                // Special rule 3: when you kill an enemy on the opponent's
-                // gate, you get an extra move.
-                GenerateMovesAll(new_state, turns, turn, false);
-            }
-
-            if (god == HADES) {
-                GenerateSpecialsHades(new_state, turns, turn, may_move_after, false, false);
-            }
+        if (may_move_after) {
+            // Special rule 3: when you kill an enemy on the opponent's
+            // gate, you get an extra move.
+            GenerateMovesAll(builder, false);
         }
 
-        --turn.naction;
+        if (god == HADES) {
+            GenerateSpecialsHades(builder, may_move_after, false, false);
+        }
     };
     auto add_action = [&](field_t field) {
         auto [r, c] = FieldCoords(field);
@@ -290,18 +358,18 @@ void GenerateAttacksOne(
     }
 }
 
-void GenerateAttacksAll(
-    const State &state, std::vector<Turn> &turns, Turn &turn
-) {
+void GenerateAttacksAll(TurnBuilder &builder) {
+    const State &state = builder.CurrentState();
     const Player player = state.NextPlayer();
-    for (field_t i = 0; i < FIELD_COUNT; ++i) {
-        if (state.PlayerAt(i) == player) {
-            GenerateAttacksOne(state, turns, turn, i);
+    for (field_t field = 0; field < FIELD_COUNT; ++field) {
+        if (state.PlayerAt(field) == player) {
+            GenerateAttacksOne(builder, field);
         }
     }
 }
 
-void GenerateSpecialsAphrodite(const State &state, std::vector<Turn> &turns, Turn &turn) {
+void GenerateSpecialsAphrodite(TurnBuilder &builder) {
+    const State &state = builder.CurrentState();
     const Player player = state.NextPlayer();
     const field_t src = state.fi(player, APHRODITE);
     if (src == -1) return;  // Aphrodite not on the board
@@ -309,19 +377,14 @@ void GenerateSpecialsAphrodite(const State &state, std::vector<Turn> &turns, Tur
     // Find ally to swap with:
     for (field_t dst = 0; dst < FIELD_COUNT; ++dst) {
         if (state.PlayerAt(dst) == player && src != dst) {
-            Action action{
+            auto scoped_action = builder.MakeScoped(Action{
                 .type  = Action::SPECIAL,
                 .god   = APHRODITE,
                 .field = dst,
-            };
-            turn.actions[turn.naction++] = action;
-            turns.push_back(turn);
+            });
             if (state.GodAt(dst) == HADES) {
-                State new_state = state;
-                ExecuteAction(new_state, action);
-                GenerateSpecialsHades(new_state, turns, turn, false, false, false);
+                GenerateSpecialsHades(builder, false, false, false);
             }
-            --turn.naction;
         }
     }
 }
@@ -334,8 +397,10 @@ void GenerateSpecialsAphrodite(const State &state, std::vector<Turn> &turns, Tur
 //  - he was swapped by Aphrodite
 //
 void GenerateSpecialsHades(
-        const State &state, std::vector<Turn> &turns, Turn &turn,
-        bool hades_may_move_after, bool hades_may_attack_after, bool may_summon_after) {
+    TurnBuilder &builder, bool hades_may_move_after,
+    bool hades_may_attack_after, bool may_summon_after
+) {
+    const State &state = builder.CurrentState();
     const Player player = state.NextPlayer();
     const Player opponent = Other(player);
     const field_t src = state.fi(player, HADES);
@@ -346,35 +411,26 @@ void GenerateSpecialsHades(
         God enemy = state.GodAt(dst);
         if (enemy != GOD_COUNT && state.PlayerAt(dst) == opponent &&
                 !state.has_fx(opponent, enemy, CHAINED)) {
-            Action action{
+            auto scoped_action = builder.MakeScoped(Action{
                 .type  = Action::SPECIAL,
                 .god   = HADES,
                 .field = dst,
-            };
-            turn.actions[turn.naction++] = action;
-            turns.push_back(turn);
-            if (hades_may_move_after || may_summon_after) {
-                State new_state = state;
-                ExecuteAction(new_state, action);
-                if (hades_may_move_after) {
-                    GenerateMovesOne(new_state, turns, turn, src, false);
-                }
-                if (hades_may_attack_after) {
-                    GenerateAttacksOne(new_state, turns, turn, src);
-                }
-                if (may_summon_after) {
-                    GenerateSummons(new_state, turns, turn, false);
-                }
+            });
+            if (hades_may_move_after) {
+                GenerateMovesOne(builder, src, false);
             }
-            --turn.naction;
+            if (hades_may_attack_after) {
+                GenerateAttacksOne(builder, src);
+            }
+            if (may_summon_after) {
+                GenerateSummons(builder, false);
+            }
         }
     }
 }
 
-void GenerateSummons(
-    const State &state, std::vector<Turn> &turns, Turn &turn,
-    bool may_move_after
-) {
+void GenerateSummons(TurnBuilder &builder, bool may_move_after) {
+    const State &state = builder.CurrentState();
     const Player player = state.NextPlayer();
     const field_t gate = gate_index[player];
 
@@ -382,31 +438,25 @@ void GenerateSummons(
 
     for (int g = 0; g != GOD_COUNT; ++g) {
         if (state.IsSummonable(player, (God) g)) {
-            Action action{
+            auto scoped_action = builder.MakeScoped({
                 .type  = Action::SUMMON,
                 .god   = AsGod(g),
                 .field = gate,
-            };
-            turn.actions[turn.naction++] = action;
-            turns.push_back(turn);
-            State new_state = state;
-            ExecuteAction(new_state, action);
+            });
 
             if (may_move_after) {
-                GenerateMovesOne(new_state, turns, turn, gate, false);
+                GenerateMovesOne(builder, gate, false);
             }
 
-            GenerateAttacksOne(new_state, turns, turn, gate);
+            GenerateAttacksOne(builder, gate);
 
             if (g == APHRODITE) {
-                GenerateSpecialsAphrodite(new_state, turns, turn);
+                GenerateSpecialsAphrodite(builder);
             }
 
             if (g == HADES) {
-                GenerateSpecialsHades(new_state, turns, turn, may_move_after, true, false);
+                GenerateSpecialsHades(builder, may_move_after, true, false);
             }
-
-            turn.naction--;
         }
     }
 }
@@ -415,20 +465,11 @@ void GenerateSummons(
 
 std::vector<Turn> GenerateTurns(const State &state) {
     std::vector<Turn> turns;
-
-    Turn turn{.naction=0, .actions={}};
-    GenerateSummons(state, turns, turn, true);
-    assert(turn.naction == 0);
-
-    GenerateMovesAll(state, turns, turn, true);
-    assert(turn.naction == 0);
-
-    GenerateAttacksAll(state, turns, turn);
-    assert(turn.naction == 0);
-
-    GenerateSpecialsAphrodite(state, turns, turn);
-    assert(turn.naction == 0);
-
+    TurnBuilder builder(turns, state);
+    GenerateSummons(builder, true);
+    GenerateMovesAll(builder, true);
+    GenerateAttacksAll(builder);
+    GenerateSpecialsAphrodite(builder);
     if (turns.empty()) {
         // Is passing always allowed?
         turns.push_back(Turn{.naction=0, .actions={}});
@@ -556,6 +597,9 @@ static void AphroditeSwap(State &state, field_t src, field_t dst) {
     state.Place(player, APHRODITE, dst);
 }
 
+// Executes an action in the given state.
+//
+// This does NOT verify that the action is valid; the caller must ensure this!
 void ExecuteAction(State &state, const Action &action) {
     // TODO? check game is not over yet? (should update movegen to match)
     Player player   = state.NextPlayer();
@@ -606,6 +650,12 @@ void ExecuteAction(State &state, const Action &action) {
     }
 }
 
+// Executes a turn in the given state, by executing all actions.
+//
+// This does NOT verify that the turn is valid; the caller must ensure this!
+// The easiest way is to make sure the turn is included in the result of
+// GenerateTurns() when called on the same state.
+//
 void ExecuteTurn(State &state, const Turn &turn) {
     assert(!state.IsOver());
     for (int i = 0; i < turn.naction; ++i) {
