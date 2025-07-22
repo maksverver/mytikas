@@ -106,6 +106,7 @@ BoardTemplate::BoardTemplate(std::string_view sv) {
     size_t j = 0;
     for (char ch : sv) {
         if (isspace(ch)) continue;
+        assert(j < FIELD_COUNT);
         data[Flip(j++)] = ch;
     }
     assert(j == FIELD_COUNT);
@@ -680,6 +681,66 @@ TEST(Poseidon, AttackPushBackBlocked) {
     EXPECT_EQ(state, new_state)
         << "Expected:\n" << State::DebugPrint(new_state) << '\n'
         << "Received:\n" << State::DebugPrint(state) << '\n';
+}
+
+// This is debatable: when Poseidon knocks chained enemies back, do they
+// become free? In the current implementation yes, even if they remain adjacent
+// to Hades (as Zeus in the example below, but not Apollo).
+TEST(Poseidon, AttackKnocksBackChainedEnemies) {
+    State state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   ..o..   "
+            "  ..Sz...  "
+            " ....P.... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    ).ToState(LIGHT);
+
+    state.Chain(DARK, APOLLO);
+    state.Chain(DARK, ZEUS);
+    EXPECT_EQ(state.fx(DARK, APOLLO), CHAINED);
+    EXPECT_EQ(state.fx(DARK, ZEUS),   CHAINED);
+
+    ExecuteTurn(state, "P!e5");
+
+    EXPECT_EQ(state.fx(DARK, APOLLO), UNAFFECTED);
+    EXPECT_EQ(state.fx(DARK, ZEUS),   UNAFFECTED);
+}
+
+// Similar to the above: when Poseidon knocks back enemy Hades, chained allies
+// that are now out of range are released (Apollo in the example below), while
+// those that remain adjacent to Hades remain chained. This is consistent with
+// how they stay chained when Hades moves.
+//
+// Note that this only happens when Hades is shielded by Athena, otherwise he
+// would be killed by Poseidon's attack and everyone is released for that
+// reason. (And also note that Athena needs to be out of range of Posseidon,
+// or she would get killed on the same turn and then cannot protect Hades).
+TEST(Poseidon, AttackKnocksBackHades) {
+    State state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   ...n.   "
+            "  ...sZ..  "
+            " ...P.O... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    ).ToState(LIGHT);
+
+    state.Chain(LIGHT, APOLLO);
+    state.Chain(LIGHT, ZEUS);
+    EXPECT_EQ(state.fx(LIGHT, APOLLO), CHAINED);
+    EXPECT_EQ(state.fx(LIGHT, ZEUS),   CHAINED);
+
+    ExecuteTurn(state, "P!d5");
+
+    EXPECT_EQ(state.fx(LIGHT, APOLLO), UNAFFECTED);  // knocked out of range
+    EXPECT_EQ(state.fx(LIGHT, ZEUS),   CHAINED);     // still in range!
 }
 
 // Note: because Athena has fewer HP (3) than Poseidon's base damage (4)
@@ -1328,9 +1389,3 @@ TEST(Athena, Special) {
 //          => is this also true if the swapped stays adjacent to Hades?
 //          => does Aphrodite get freed if she stays adjacent to Hades?
 //          (see questions.txt)
-
-// TODO: Poseidon/Hades test:
-//      - when Hades gets knocked back, chains should stay on enemies that remain
-//        adjacent, but are removed from enemies that are no longer adjacent (note
-//        that when Hades is knocked back, his enemies aren't)
-//      - when enemies get knocked back, they should be dechained from friendly Hades!
