@@ -953,9 +953,10 @@ TEST(Aphrodite, Special3) {
     state.Place(LIGHT, ZEUS,      ParseField("e8"));
     state.Place(LIGHT, APHRODITE, ParseField("e7"));
 
-    EXPECT_TRUE (FindTurn(state, "A+e8"));       // can swap as only move
-    EXPECT_TRUE (FindTurn(state, "Z!e9,A>e9"));  // can move after kill
-    EXPECT_FALSE(FindTurn(state, "Z!e9,A+e8"));  // cannot swap after kill
+    std::vector<std::string> turns = TurnStrings(state);
+    EXPECT_THAT(turns, Contains("A+e8"));            // can swap as only move
+    EXPECT_THAT(turns, Contains("Z!e9,A>e9"));       // can move after kill
+    EXPECT_THAT(turns, Not(Contains("Z!e9,A+e8")));  // cannot swap after kill
 }
 
 // Ares moves up to 3 spaces in any single direction (same as Hades).
@@ -1090,11 +1091,12 @@ TEST(Hades, Special) {
             "     .     "
     ).ToState(LIGHT);
 
-    EXPECT_TRUE (FindTurn(state, "S>d5"));
-    EXPECT_TRUE (FindTurn(state, "S>d5,S+c6"));
-    EXPECT_TRUE (FindTurn(state, "S>d5,S+d6"));
-    EXPECT_FALSE(FindTurn(state, "S>d5,S+e6"));       // empty
-    EXPECT_FALSE(FindTurn(state, "S>d5,S+f6"));       // not adjacent
+    std::vector<std::string> turns = TurnStrings(state);
+    EXPECT_THAT(turns, Contains("S>d5"));
+    EXPECT_THAT(turns, Contains("S>d5,S+c6"));
+    EXPECT_THAT(turns, Contains("S>d5,S+d6"));
+    EXPECT_THAT(turns, Not(Contains("S>d5,S+e6")));       // empty
+    EXPECT_THAT(turns, Not(Contains("S>d5,S+f6")));       // not adjacent
 
     ExecuteTurn(state, "S>d5,S+c6");  // chain Hera at c6
 
@@ -1109,7 +1111,7 @@ TEST(Hades, Special) {
 
     state.EndTurn();  // skip dark turn
 
-    EXPECT_FALSE(FindTurn(state, "S!d5,S+c6"));  // cannot chain Hera twice
+    EXPECT_THAT(TurnStrings(state), Not(Contains("S!d5,S+c6")));  // cannot chain Hera twice
 
     ExecuteTurn(state, "S!d5,S+d6");  // attack + chain Zeus at d6
 
@@ -1154,16 +1156,17 @@ TEST(Hades, SpecialAfterSummon) {
     state.Place(DARK, ZEUS,       ParseField("d2"));
     state.Place(DARK, HEPHAESTUS, ParseField("f2"));
 
-    EXPECT_TRUE(FindTurn(state, "S@e1"));
-    EXPECT_TRUE(FindTurn(state, "S@e1,S+d2"));
-    EXPECT_TRUE(FindTurn(state, "S@e1,S+d2,S>e2"));
-    EXPECT_TRUE(FindTurn(state, "S@e1,S+d2,S>e2,S+f2"));
-    EXPECT_TRUE(FindTurn(state, "S@e1,S>e2"));
-    EXPECT_TRUE(FindTurn(state, "S@e1,S>e2,S+f2"));
-    EXPECT_TRUE(FindTurn(state, "S@e1,S+d2,S!e1"));
-    EXPECT_TRUE(FindTurn(state, "S@e1,S+d2,S!e1,S+f2"));
-    EXPECT_TRUE(FindTurn(state, "S@e1,S!e1"));
-    EXPECT_TRUE(FindTurn(state, "S@e1,S!e1,S+f2"));
+    std::vector<std::string> turns = TurnStrings(state);
+    EXPECT_THAT(turns, Contains("S@e1"));
+    EXPECT_THAT(turns, Contains("S@e1,S+d2"));
+    EXPECT_THAT(turns, Contains("S@e1,S+d2,S>e2"));
+    EXPECT_THAT(turns, Contains("S@e1,S+d2,S>e2,S+f2"));
+    EXPECT_THAT(turns, Contains("S@e1,S>e2"));
+    EXPECT_THAT(turns, Contains("S@e1,S>e2,S+f2"));
+    EXPECT_THAT(turns, Contains("S@e1,S+d2,S!e1"));
+    EXPECT_THAT(turns, Contains("S@e1,S+d2,S!e1,S+f2"));
+    EXPECT_THAT(turns, Contains("S@e1,S!e1"));
+    EXPECT_THAT(turns, Contains("S@e1,S!e1,S+f2"));
 }
 
 TEST(Hades, SpecialBeforeSummon) {
@@ -1300,6 +1303,7 @@ TEST(Athena, Special) {
     EXPECT_FALSE(state.has_fx(LIGHT, APOLLO,  SHIELDED));  // out of range
 
     ExecuteTurn(state, "Z!e6");
+
     EXPECT_EQ(state.hp(LIGHT, ZEUS), 10);  // no damage taken
 }
 
