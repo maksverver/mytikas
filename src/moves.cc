@@ -9,6 +9,9 @@
 
 namespace {
 
+constexpr int ares_special_dmg = 1;
+constexpr int ares_special_rng = 1;
+
 // Helper class to collect the list of valid turns. Each turn consists of a
 // sequence of actions, which is generated recursively. This class helps
 // maintain the intermediate sequence of actions and the corresponding state
@@ -45,14 +48,23 @@ public:
         turns.push_back(turn);
     }
 
-    const State &CurrentState() {
-        assert(nstate > 0);
-        while (nstate <= turn.naction) {
+    const State &StateByIndex(int index) {
+        assert(0 <= index && index <= turn.naction);
+        while (nstate <= index) {
             states[nstate] = states[nstate - 1];
             ExecuteAction(states[nstate], turn.actions[nstate - 1]);
             ++nstate;
         }
-        return states[nstate - 1];
+        return states[index];
+    }
+
+    const State &PreviousState() {
+        assert(turn.naction > 0);
+        return StateByIndex(turn.naction - 1);
+    }
+
+    const State &CurrentState() {
+        return StateByIndex(turn.naction);
     };
 
     // Helper class that pushes an Action when created, and pops it when
@@ -96,11 +108,33 @@ private:
     size_t nstate = 0;
 };
 
-
 // A rectangular area to be attacked. Includes all fields with coords (r, c)
 // where r1 <= r <= r2 and c1 <= c <= c2 (i.e., all endpoints are inclusive).
+//
+// The coordinates are clamped to the bounding box of the board
+// (0..BOARD_SIZE-1) but not necessarily all of the included coordinates
+// correspond to existing fields.
 struct Area {
     int r1, c1, r2, c2;
+
+    Area() : r1(0), c1(0), r2(-1), c2(-1) {}
+
+    Area(int r1, int c1, int r2, int c2) :
+        r1(std::max(r1, 0)),
+        c1(std::max(c1, 0)),
+        r2(std::min(r2, BOARD_SIZE - 1)),
+        c2(std::min(c2, BOARD_SIZE - 1)) {}
+
+    bool Empty() const { return r1 > r2 || c1 > c2; }
+
+    static Area around(field_t field, int range) {
+        auto [r, c] = FieldCoords(field);
+        return Area(r - range, c - range, r + range, c + range);
+    }
+
+    static Area around(int r, int c, int range) {
+        return Area(r - range, c - range, r + range, c + range);
+    }
 
     bool Contains(field_t field) const {
         auto [r, c] = FieldCoords(field);
@@ -113,47 +147,34 @@ struct Area {
 
     static Area Get(Player player, God god, field_t field) {
         auto [r, c] = FieldCoords(field);
-        int r1, c1, r2, c2;
         switch (god) {
             case POSEIDON:
-                c1 = c - 1;
-                c2 = c + 1;
-                if (player == LIGHT) {
-                    r1 = r + 1;
-                    r2 = r + 2;
-                } else {
-                    r1 = r - 2;
-                    r2 = r - 1;
-                }
-                break;
+                return
+                    (player == LIGHT)
+                        ? Area(r + 1, c - 1, r + 2, c + 1)
+                        : Area(r - 2, c - 1, r - 1, c + 1);
+
             case DIONYSUS:
-                c1 = c2 = c;
-                r1 = r2 = r;
-                // TODO
-                break;
+                return
+                    (player == LIGHT)
+                        ? Area(r + 1, 0, r + 1, BOARD_SIZE)
+                        : Area(r - 1, 0, r - 1, BOARD_SIZE);
+
             case HADES:
-                {
-                    int rng = pantheon[god].rng;
-                    r1 = r - rng;
-                    c1 = c - rng;
-                    r2 = r + rng;
-                    c2 = c + rng;
-                }
-                break;
+                return Area::around(r, c, pantheon[god].rng);
+
             default:
                 assert(false);
         }
-        if (r1 < 0) r1 = 0;
-        if (c1 < 0) c1 = 0;
-        if (r2 >= BOARD_SIZE) r2 = BOARD_SIZE - 1;
-        if (c2 >= BOARD_SIZE) c2 = BOARD_SIZE - 1;
-        return Area{r1, c1, r2, c2};
+        return Area();  // unreachable
     }
 };
 
 void GenerateSpecialsHades(
     TurnBuilder &builder, bool hades_may_move_after,
     bool hades_may_attack_after, bool may_summon_after);
+
+void GenerateSpecialsAres(TurnBuilder &builder, Player player, field_t field);
 
 void GenerateSummons(TurnBuilder &builder, bool may_move_after);
 
@@ -178,11 +199,12 @@ void GenerateMovesOne(TurnBuilder &builder, field_t field, bool may_summon_after
         if (may_summon_after) {
             GenerateSummons(builder, false);
         }
+        if (god == ARES) {
+            GenerateSpecialsAres(builder, state.NextPlayer(), field);
+        }
         if (god == HADES) {
             GenerateSpecialsHades(builder, false, false, may_summon_after);
         }
-        // TODO: if Ares kills an enemy at their gate by moving next to
-        // them, he should get to move again
     };
 
     // The logic below is similar to GenerateAttacksOne(), defined below.
@@ -230,7 +252,6 @@ void GenerateMovesOne(TurnBuilder &builder, field_t field, bool may_summon_after
             }
         }
     }
-    // TODO: special moves: Hermes
 }
 
 void GenerateMovesAll(TurnBuilder &builder, bool may_summon_after) {
@@ -243,6 +264,22 @@ void GenerateMovesAll(TurnBuilder &builder, bool may_summon_after) {
         }
     }
     // TODO: support Hermes movement boost!
+}
+
+// Determines damage at an area killed an enemy at the opponent's gate,
+// which would enable a second move.
+//
+// The implementation is slightly convoluted in the interest of performance:
+// it tries not to evaluate PreviousState() and CurrentState() when it can
+// be determined no enemy was killed.
+bool KilledEnemyAtGate(TurnBuilder &builder, const Area &damage_area, Player opponent) {
+    field_t opponent_gate = gate_index[opponent];
+    if (!damage_area.Contains(opponent_gate)) return false;
+    const State &prev_state = builder.PreviousState();
+    if (prev_state.PlayerAt(opponent_gate) != opponent) return false;
+    God enemy = AsGod(prev_state.GodAt(opponent_gate));
+    const State &next_state = builder.CurrentState();
+    return next_state.IsDead(opponent, enemy);
 }
 
 void GenerateAttacksOne(TurnBuilder &builder, field_t field) {
@@ -265,11 +302,7 @@ void GenerateAttacksOne(TurnBuilder &builder, field_t field) {
             .field  = field,
         });
 
-        field_t opponent_gate = gate_index[opponent];
-        bool may_move_after =
-                area.Contains(opponent_gate) &&
-                state.PlayerAt(opponent_gate) == opponent &&
-                builder.CurrentState().IsOccupied(opponent_gate) == false;
+        bool may_move_after = KilledEnemyAtGate(builder, area, opponent);
 
         if (may_move_after) {
             // Special rule 3: when you kill an enemy on the opponent's
@@ -282,8 +315,7 @@ void GenerateAttacksOne(TurnBuilder &builder, field_t field) {
         }
     };
     auto add_action = [&](field_t field) {
-        auto [r, c] = FieldCoords(field);
-        add_action_with_area(field, Area{r, c, r, c});
+        add_action_with_area(field, Area::around(field, 0));
     };
 
     if (dirs.empty()) {
@@ -368,6 +400,22 @@ void GenerateAttacksAll(TurnBuilder &builder) {
     }
 }
 
+// Ares special is to deal damage whenever he lands next to an enemy. Since
+// this happens automatically it is NOT modeled as a separate action. However,
+// if this ability kills an enemy at the opponent's gate, this should trigger
+// an extra move. This function exists solely to generate that extra move.
+//
+// That's why this should only be called after moves/specials that do not
+// themselves trigger a second move on their own.
+void GenerateSpecialsAres(TurnBuilder &builder, Player player, field_t field) {
+    Area areas = Area::around(field, ares_special_rng);
+    if (KilledEnemyAtGate(builder, areas, Other(player))) {
+        // Special rule 3: when you kill an enemy on the opponent's
+        // gate, you get an extra move.
+        GenerateMovesAll(builder, false);
+    }
+}
+
 void GenerateSpecialsAphrodite(TurnBuilder &builder) {
     const State &state = builder.CurrentState();
     const Player player = state.NextPlayer();
@@ -382,6 +430,9 @@ void GenerateSpecialsAphrodite(TurnBuilder &builder) {
                 .god   = APHRODITE,
                 .field = dst,
             });
+            if (state.GodAt(dst) == ARES) {
+                GenerateSpecialsAres(builder, player, src);
+            }
             if (state.GodAt(dst) == HADES) {
                 GenerateSpecialsHades(builder, false, false, false);
             }
@@ -461,23 +512,7 @@ void GenerateSummons(TurnBuilder &builder, bool may_move_after) {
     }
 }
 
-}  // namespace
-
-std::vector<Turn> GenerateTurns(const State &state) {
-    std::vector<Turn> turns;
-    TurnBuilder builder(turns, state);
-    GenerateSummons(builder, true);
-    GenerateMovesAll(builder, true);
-    GenerateAttacksAll(builder);
-    GenerateSpecialsAphrodite(builder);
-    if (turns.empty()) {
-        // Is passing always allowed?
-        turns.push_back(Turn{.naction=0, .actions={}});
-    }
-    return turns;
-}
-
-static int GetDamage(const State &state, Player player, God god, field_t target) {
+int GetDamage(const State &state, Player player, God god, field_t target) {
     int damage = pantheon[god].dmg;
 
     switch (god) {
@@ -518,7 +553,7 @@ static int GetDamage(const State &state, Player player, God god, field_t target)
     return damage;
 }
 
-static void DamageField(State &state, field_t field, Player opponent, int damage) {
+void DamageField(State &state, field_t field, Player opponent, int damage) {
     assert(field != -1 && state.PlayerAt(field) == opponent);
 
     if (state.has_fx(opponent, state.GodAt(field), SHIELDED)) {
@@ -528,7 +563,7 @@ static void DamageField(State &state, field_t field, Player opponent, int damage
     }
 }
 
-static void DamageArea(State &state, Area area, Player opponent, int damage, int knock_dir) {
+void DamageArea(State &state, Area area, Player opponent, int damage, int knock_dir) {
     // First: damage enemy Athena if she's in range, since if Athena dies, she
     // cannot protect anyone else this turn.
     field_t athena_field = state.fi(opponent, ATHENA);
@@ -569,6 +604,13 @@ static void DamageArea(State &state, Area area, Player opponent, int damage, int
     }
 }
 
+void AresLand(State &state, field_t field) {
+    assert(state.GodAt(field) == ARES);
+    Player opponent = Other(AsPlayer(state.PlayerAt(field)));
+    Area area = Area::around(field, ares_special_rng);
+    DamageArea(state, area, opponent, ares_special_dmg, 0);
+}
+
 // Executes Aphrodite's special ability: swapping with a friendly god
 // anywhere on the board.
 //
@@ -576,14 +618,17 @@ static void DamageArea(State &state, Area area, Player opponent, int damage, int
 //
 //  - When Aphrodite swaps with an ally, both are freed of enemy Hades.
 //
-//  - When Aphrodite swaps with a friendly Hades, enemies that were chained are
+//  - When Aphrodite swaps with Hades, enemies that were chained are
 //    kept in chains only if they remain adjacent; this is handled already
 //    by State::Move().
 //
 //    (Note that Hades may chain a new enemy in that case, which is
 //    encoded with a separate special ability, so not handled here.)
 //
-static void AphroditeSwap(State &state, field_t src, field_t dst) {
+//  - When Aphrodite swaps with a friendly Ares, his special deals
+//    damage to adjacent enemies.
+//
+void AphroditeSwap(State &state, field_t src, field_t dst) {
     assert(src != -1 && dst != -1 && src != dst);
     assert(state.GodAt(src) == APHRODITE);
     God ally = state.GodAt(dst);
@@ -595,6 +640,26 @@ static void AphroditeSwap(State &state, field_t src, field_t dst) {
     state.Remove(player, APHRODITE);
     state.Move(player, ally, src);
     state.Place(player, APHRODITE, dst);
+
+    if (ally == ARES) {
+        AresLand(state, src);
+    }
+}
+
+}  // namespace
+
+std::vector<Turn> GenerateTurns(const State &state) {
+    std::vector<Turn> turns;
+    TurnBuilder builder(turns, state);
+    GenerateSummons(builder, true);
+    GenerateMovesAll(builder, true);
+    GenerateAttacksAll(builder);
+    GenerateSpecialsAphrodite(builder);
+    if (turns.empty()) {
+        // Is passing always allowed?
+        turns.push_back(Turn{.naction=0, .actions={}});
+    }
+    return turns;
 }
 
 // Executes an action in the given state.
@@ -608,12 +673,16 @@ void ExecuteAction(State &state, const Action &action) {
         case Action::SUMMON:
             assert(action.field == gate_index[player]);
             state.Place(player, action.god, action.field);
-            // TODO: special case heros (Ares, Hades, Athena, etc.)
+            if (action.god == ARES) {
+                AresLand(state, action.field);
+            }
             break;
 
         case Action::MOVE:
             state.Move(player, action.god, action.field);
-            // TODO: special case heros (Ares, Hades, ...)
+            if (action.god == ARES) {
+                AresLand(state, action.field);
+            }
             break;
 
         case Action::ATTACK:

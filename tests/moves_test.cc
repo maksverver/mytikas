@@ -1059,8 +1059,129 @@ TEST(Ares, Moves) {
     );
 }
 
-// TODO: Ares attacks
-// TODO: Ares special
+TEST(Ares, Attacks) {
+    TestAttack(LIGHT, ARES, {DIONYSUS, APOLLO, POSEIDON},
+            "     .     "
+            "    ...    "
+            "   d....   "
+            "  ...o...  "
+            " a...R..p. "
+            "  .......  "
+            "   ...m.   "
+            "    ...    "
+            "     .     "
+    );
+}
+
+TEST(Ares, Special) {
+    State state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  ..Aopz.  "
+            " ..nd..... "
+            "  ...R...  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    ).ToState(LIGHT);
+
+    ExecuteTurn(state, "R>e5");
+
+    EXPECT_EQ(state.hp(LIGHT, APHRODITE), pantheon[APHRODITE].hit);  // ally
+    EXPECT_EQ(state.hp(DARK,  DIONYSUS),  pantheon[DIONYSUS].hit);  // shielded
+    EXPECT_EQ(state.hp(DARK,  APOLLO),    pantheon[APOLLO].hit - 1);
+    EXPECT_EQ(state.hp(DARK,  POSEIDON),  pantheon[POSEIDON].hit - 1);
+    EXPECT_EQ(state.hp(DARK,  ZEUS),      pantheon[ZEUS].hit);  // out of range
+}
+
+TEST(Ares, SpecialOnSummon) {
+    State state = State::Initial();
+    state.Place(DARK, ZEUS, ParseField("e2"));
+
+    ExecuteTurn(state, "R@e1");
+
+    EXPECT_EQ(state.hp(DARK, ZEUS), pantheon[ZEUS].hit - 1);
+}
+
+// When Aphrodite swaps with Ares, he does damage when he lands on the new location.
+TEST(Ares, SpecialOnSwap) {
+    State state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  ...Rp..  "
+            " ......... "
+            "  ..oA...  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    ).ToState(LIGHT);
+
+    ExecuteTurn(state, "A+e6");
+
+    EXPECT_EQ(state.hp(DARK, APOLLO),   pantheon[APOLLO].hit - 1);
+    EXPECT_EQ(state.hp(DARK, POSEIDON), pantheon[POSEIDON].hit);
+}
+
+TEST(Ares, SpecialMoveAfterMove) {
+    State state = BoardTemplate(
+            "     n     "
+            "    ...    "
+            "   .....   "
+            "  ...R...  "
+            " ......... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    ).ToState(LIGHT);
+
+    state.SetHpForTest(DARK, ATHENA, 1);
+
+    EXPECT_THAT(TurnStrings(state), Contains("R>e8,R>e9"));
+}
+
+TEST(Ares, SpecialMoveAfterAphroditeSwap) {
+    State state = BoardTemplate(
+            "     n     "
+            "    .A.    "
+            "   .....   "
+            "  .......  "
+            " ......... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     R     "
+    ).ToState(LIGHT);
+
+    state.SetHpForTest(DARK, ATHENA, 1);
+
+    EXPECT_THAT(TurnStrings(state), Contains("A+e1,R>e9"));
+}
+
+// Debatable: when Poseidon pushes Ares back, this does NOT count as Ares
+// "landing" on a new field, so it does not trigger his damage ability.
+TEST(Ares, SpecialNotAfterPoseidonPush) {
+    State state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  .......  "
+            " ....p.... "
+            "  ...R...  "
+            "   .....   "
+            "    .z.    "
+            "     .     "
+    ).ToState(DARK);
+
+    ExecuteTurn(state, "P!e5");
+
+    ASSERT_THAT(state.hp(LIGHT, ARES), pantheon[ARES].hit - pantheon[POSEIDON].dmg);
+    ASSERT_THAT(state.fi(LIGHT, ARES), ParseField("e3"));  // knocked back
+    ASSERT_THAT(state.fi(DARK,  ZEUS), ParseField("e2"));  // adjacent
+    ASSERT_THAT(state.hp(DARK,  ZEUS), pantheon[ZEUS].hit);  // undamaged
+}
 
 // TODO: Hermes
 
@@ -1368,24 +1489,12 @@ TEST(Athena, Special) {
     EXPECT_EQ(state.hp(LIGHT, ZEUS), 10);  // no damage taken
 }
 
-// TODO: aphrodite swapping enables hades chain ability
-// TODO: aphrodite swapping activates ares area damage
-// TODO: aphrodite swapping unchains both her and her ally
-// TODO: aphrodite swapping with friendly Hades unchains enemies that are no longer
-//       next to him (this should already work, but test it)
-
-// TODO: ares, hermes, dionysus, artemis
+// TODO: hermes, dionysus, artemis
 
 // TODO: dionysis cannot kill enemy protected by athena
 // TODO: dionysis can move twice when adjacent to hermes
 // TODO: arthemis cannot use withering moon on enemy protected athena
 // TODO: hermes CAN kill enemy protected by athena when killing athena on the same turn
 
-// TODO:
-//   - "Aphrodite's ability counts as a move for the swapped friend, so Hades' Bind and Ares'
-//      damage can take effect after the switch."
-//   - "Aphrodite's ability can also be used to free a friend from Hades' Bind,
-//      so that Hades will have to recapture the swapped piece on his turn."
-//          => is this also true if the swapped stays adjacent to Hades?
-//          => does Aphrodite get freed if she stays adjacent to Hades?
-//          (see questions.txt)
+// Aphrodite TODO (or at respective heros)
+//   - swap with Hades allows him to bind
