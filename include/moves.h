@@ -75,7 +75,7 @@ struct Turn {
     auto operator<=>(const Turn &t) const {
         return std::lexicographical_compare_three_way(
             actions, actions + naction,
-            t.actions, t.actions + naction);
+            t.actions, t.actions + t.naction);
     }
 };
 

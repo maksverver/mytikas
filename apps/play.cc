@@ -190,9 +190,12 @@ int main(int argc, char *argv[]) {
     // Play game
     while (!state.IsOver()) {
         PrintState(state);
+        std::cout << '\n';
 
         std::vector<Turn> turns = GenerateTurns(state);
-        std::cout << '\n';
+        // Note this sorts by internal structure, not string presentation.
+        // This keeps Zeus as the first God, moves before attacks, etc.
+        std::ranges::sort(turns);
         PrintTurns(turns);
         std::cout << '\n';
 
