@@ -45,6 +45,10 @@ public:
         if (nstate > turn.naction + 1) --nstate;
     }
 
+    void PopActions(size_t n) {
+        while (n --> 0) PopAction();
+    }
+
     void AddTurn() {
         turns.push_back(turn);
     }
@@ -192,7 +196,7 @@ void GenerateMovesOne(TurnBuilder &builder, field_t field, bool may_summon_after
             + (state.has_fx(player, god, SPEED_BOOST) ? hermes_speed_boost : 0);
     std::span<const Dir> dirs = pantheon[god].mov_dirs;
 
-    auto add_action = [&](field_t field) {
+    auto add_move_action = [&](field_t field) {
         auto scoped_action = builder.MakeScoped(Action{
             .type      = Action::MOVE,
             .god       = god,
@@ -223,7 +227,7 @@ void GenerateMovesOne(TurnBuilder &builder, field_t field, bool may_summon_after
                 c += dc;
                 field_t i = FieldIndex(r, c);
                 if (i == -1 || state.IsOccupied(i)) break;
-                add_action(i);
+                add_move_action(i);
             }
         }
     } else {
@@ -247,7 +251,7 @@ void GenerateMovesOne(TurnBuilder &builder, field_t field, bool may_summon_after
                     int8_t cc = c + dc;
                     field_t i = FieldIndex(rr, cc);
                     if (i == -1 || state.IsOccupied(i) || seen[i]) continue;
-                    add_action(i);
+                    add_move_action(i);
                     seen[i] = true;
                     todo[end++] = Coords{rr, cc};
                 }
@@ -297,14 +301,30 @@ void GenerateAttacksOne(TurnBuilder &builder, field_t field) {
     int max_dist = pantheon[god].rng;
     std::span<const Dir> dirs = pantheon[god].atk_dirs;
 
-    auto add_action_with_area = [&](field_t field, Area area) {
-        auto scoped_action = builder.MakeScoped(Action{
-            .type   = Action::ATTACK,
-            .god    = god,
-            .field  = field,
-        });
+    struct Attack {
+        field_t field;
+        Area area;
 
-        bool may_move_after = KilledEnemyAtGate(builder, area, opponent);
+        static Attack AtArea(field_t field, Area area) {
+            return Attack{.field = field, .area = area};
+        }
+
+        static Attack AtField(field_t field) {
+            return Attack{.field = field, .area = Area::around(field, 0)};
+        }
+    };
+
+    auto add_attack_actions = [&](std::span<const Attack> attacks) {
+        bool may_move_after = false;
+        for (const Attack &attack : attacks) {
+            builder.PushAction(Action{
+                .type   = Action::ATTACK,
+                .god    = god,
+                .field  = attack.field,
+            });
+            builder.AddTurn();
+            may_move_after = may_move_after || KilledEnemyAtGate(builder, attack.area, opponent);
+        }
 
         if (may_move_after) {
             // Special rule 3: when you kill an enemy on the opponent's
@@ -315,9 +335,8 @@ void GenerateAttacksOne(TurnBuilder &builder, field_t field) {
         if (god == HADES) {
             GenerateSpecialsHades(builder, may_move_after, false, false);
         }
-    };
-    auto add_action = [&](field_t field) {
-        add_action_with_area(field, Area::around(field, 0));
+
+        builder.PopActions(attacks.size());
     };
 
     if (dirs.empty()) {
@@ -330,7 +349,8 @@ void GenerateAttacksOne(TurnBuilder &builder, field_t field) {
         for (int r = area.r1; r <= area.r2; ++r) {
             for (int c = area.c1; c <= area.c2; ++c) {
                 if (int i = FieldIndex(r, c); i != -1 && state.PlayerAt(i) == opponent) {
-                    add_action_with_area(field, area);
+                    Attack attacks[1] = {Attack::AtArea(field, area)};
+                    add_attack_actions(attacks);
                     goto done;
                 }
             }
@@ -344,6 +364,10 @@ void GenerateAttacksOne(TurnBuilder &builder, field_t field) {
     if (pantheon[god].atk_direct) {
         // Direct attacks only: scan each direction until we reach the end of
         // the board or an occupied field.
+        field_t field_data[8];
+        size_t field_size = 0;
+        assert(std::size(field_data) >= std::size(dirs));
+
         Coords coords = FieldCoords(field);
         for (auto [dr, dc] : dirs) {
             auto [r, c] = coords;
@@ -353,12 +377,37 @@ void GenerateAttacksOne(TurnBuilder &builder, field_t field) {
                 field_t i = FieldIndex(r, c);
                 if (i == -1) break;
                 int pl = state.PlayerAt(i);
-                if (pl == opponent) add_action(i);
-
+                if (pl == opponent) {
+                    field_data[field_size++] = i;
+                }
                 if (god == ZEUS) {
                     // Zeus' special attack can pass over enemies and allies
                 } else {
                     if (pl != -1) break;
+                }
+            }
+        }
+
+        // Execute any single attack:
+        std::span fields(field_data, field_size);
+        for (field_t field : fields) {
+            Attack attacks[1] = {Attack::AtField(field)};
+            add_attack_actions(attacks);
+        }
+
+        // Hermes can attack two targets in the same turn:
+        if (god == HERMES) {
+            // Sort by gods to normalize attacks, and so we can kill Athena first,
+            // so she doesn't shield the second god we attack.
+            static_assert(ATHENA == GOD_COUNT - 1);
+            std::ranges::sort(fields, {}, [&state](field_t f){ return state.GodAt(f); });
+            for (size_t i = 1; i < fields.size(); ++i) {
+                for (size_t j = 0; j < i; ++j) {
+                    Attack attacks[2] = {
+                        Attack::AtField(fields[i]),
+                        Attack::AtField(fields[j]),
+                    };
+                    add_attack_actions(attacks);
                 }
             }
         }
@@ -383,7 +432,8 @@ void GenerateAttacksOne(TurnBuilder &builder, field_t field) {
                     if (pl == -1) {
                         todo[end++] = Coords{rr, cc};
                     } else if (pl == opponent) {
-                        add_action(i);
+                        Attack attacks[1] = {Attack::AtField(i)};
+                        add_attack_actions(attacks);
                     }
                 }
             }

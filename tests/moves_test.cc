@@ -177,10 +177,20 @@ void TestMovement(Player player, God god, const BoardTemplate &t) {
     EXPECT_EQ(expected, received);
 }
 
-void TestAttack(Player player, God god, std::vector<God> expected, const BoardTemplate &t) {
+enum class TestAttackOptions {
+    DEFAULT,
+    DEDUPLICATE
+};
+
+void TestAttack(Player player, God god, std::vector<God> expected, const BoardTemplate &t,
+        TestAttackOptions options=TestAttackOptions::DEFAULT) {
     std::vector<God> received = AttackTargets(t.ToState(player), god);
     std::ranges::sort(expected);
     std::ranges::sort(received);
+    if (options == TestAttackOptions::DEDUPLICATE) {
+        received.erase(std::unique(received.begin(), received.end()), received.end());
+
+    }
     EXPECT_THAT(received, UnorderedElementsAreArray(expected))
         << "expected: " << expected << '\n'
         << "received: " << received;
@@ -1234,10 +1244,10 @@ TEST(Hermes, Attacks) {
             "   ...r.   "
             "    ...    "
             "     .     "
-    );
+        , TestAttackOptions::DEDUPLICATE);
 }
 
-TEST(Hermes, AttackTwice) {
+TEST(Hermes, AttackAthenaFirst) {
     State state = BoardTemplate(
             "     .     "
             "    ...    "
@@ -1249,21 +1259,26 @@ TEST(Hermes, AttackTwice) {
             "    ...    "
             "     .     "
         ).ToState(LIGHT);
+    state.SetHpForTest(DARK, ATHENA, pantheon[HERMES].dmg);
 
     std::vector<std::string> turns = TurnStrings(state);
     EXPECT_THAT(turns, Contains("M!e7"));
     EXPECT_THAT(turns, Contains("M!c5"));
     EXPECT_THAT(turns, Contains("M!g5"));
-    EXPECT_THAT(turns, Contains("M!c5,e7"));
-    EXPECT_THAT(turns, Contains("M!c5,g5"));
-    EXPECT_THAT(turns, Contains("M!e7,g5"));
-    EXPECT_THAT(turns, Not(Contains("M!e7,c5")));  // deduped
-    EXPECT_THAT(turns, Not(Contains("M!g5,c5")));  // deduped
-    EXPECT_THAT(turns, Not(Contains("M!g5,e7")));  // deduped
-    EXPECT_THAT(turns, Not(Contains("M!c5,e7,g5")));  // no more than 2 attacks
-}
+    EXPECT_THAT(turns, Contains("M!c5,M!e7"));
+    EXPECT_THAT(turns, Contains("M!c5,M!g5"));
+    EXPECT_THAT(turns, Contains("M!e7,M!g5"));
+    EXPECT_THAT(turns, Not(Contains("M!e7,M!c5")));  // deduped
+    EXPECT_THAT(turns, Not(Contains("M!g5,M!c5")));  // deduped
+    EXPECT_THAT(turns, Not(Contains("M!g5,M!e7")));  // deduped
+    EXPECT_THAT(turns, Not(Contains("M!c5,M!e7,M!g5")));  // no more than 2 attacks
 
-// TODO: hermes kills twice, one at the enemy gate
+    ExecuteTurn(state, "M!c5,M!g5");
+
+    EXPECT_TRUE(state.IsDead(DARK, ATHENA));
+    EXPECT_EQ(state.hp(DARK, HERA), pantheon[HERA].hit);
+    EXPECT_EQ(state.hp(DARK, ZEUS), pantheon[ZEUS].hit - pantheon[HERMES].dmg);
+}
 
 TEST(Hermes, Special) {
     State state = BoardTemplate(
@@ -1283,12 +1298,6 @@ TEST(Hermes, Special) {
     EXPECT_THAT(turns, Contains("R>i5"));
     EXPECT_THAT(turns, Not(Contains("R!e9")));  // attack range not boosted
 }
-
-// TODO: Hermes
-//              Double attack
-//              Double attack Athena?
-
-// TODO: hermes CAN kill enemy protected by athena when killing athena on the same turn
 
 // TODO: Dionysus
 // TODO: Dionysus test with speed boost from Hermes
@@ -1627,7 +1636,7 @@ TEST(Athena, Special) {
     EXPECT_EQ(state.hp(LIGHT, ZEUS), 10);  // no damage taken
 }
 
-// TODO: hermes, dionysus, artemis
+// TODO: dionysus, artemis
 
 // TODO: dionysis cannot kill enemy protected by athena
 // TODO: dionysis can move twice when adjacent to hermes
