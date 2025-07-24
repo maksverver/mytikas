@@ -273,7 +273,6 @@ void State::Remove(Player player, God god, field_t field) {
 }
 
 void State::Move(Player player, God god, field_t dst) {
-    // TODO: add support for Dionysus jumping on a piece
     assert(dst != -1 && !fields[dst].occupied);
 
     Unchain(player, god); // moving always removes Hades chain
@@ -318,17 +317,20 @@ void State::Move(Player player, God god, field_t dst) {
         });
 }
 
-uint8_t State::DealDamage(Player player, field_t field, int damage) {
-    assert(fields[field].occupied && fields[field].player == player);
-    God god = fields[field].god;
+void State::DealDamage(Player player, God god, int damage) {
+    assert(fi(player, god) != -1);
     auto &hp = gods[player][god].hp;
     if (hp > damage) {
         hp -= damage;
     } else {
-        hp = 0;
-        Remove(player, god, field);
+        Kill(player, god);
     }
-    return hp;
+}
+
+void State::Kill(Player player, God god) {
+    field_t field = fi(player, god);
+    gods[player][god].hp = 0;
+    Remove(player, god, field);
 }
 
 void State::SetHpForTest(Player player, God god, int hp) {

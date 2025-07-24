@@ -13,6 +13,7 @@ using ::testing::UnorderedElementsAreArray;
 #include <cassert>
 #include <cctype>
 #include <string_view>
+#include <ranges>
 #include <vector>
 
 std::ostream& operator<<(std::ostream &os, const std::vector<field_t> &v) {
@@ -73,6 +74,9 @@ std::vector<field_t> MoveDestinations(const State &state, God god) {
     return res;
 }
 
+// This returns all fields of attack actions for the current god.
+// It doesn't work for area of effect attacks, performed by the
+// likes of Dionysus, Hades, Poseidon, etc.
 std::vector<God> AttackTargets(const State &state, God god) {
     std::vector<God> res;
     for (const Turn &turn : GenerateTurns(state)) {
@@ -80,6 +84,28 @@ std::vector<God> AttackTargets(const State &state, God god) {
             const Action &action = turn.actions[i];
             if (action.type == Action::ATTACK && action.god == god) {
                 res.push_back(state.GodAt(action.field));
+            }
+        }
+    }
+    return res;
+}
+
+// This tests area of effect attacks by checking which gods are reduced in HP.
+std::vector<God> AreaAttackTargets(const State &old_state, God god) {
+    std::vector<God> res;
+    for (const Turn &turn : GenerateTurns(old_state)) {
+        if ( turn.naction > 0 &&
+             turn.actions[0].type == Action::ATTACK &&
+             turn.actions[0].god == god ) {
+            State new_state = old_state;
+            ExecuteAction(new_state, turn.actions[0]);
+            for (int p = 0; p < 2; ++p) {
+                for (int g = 0; g < GOD_COUNT; ++g) {
+                    if ( old_state.hp(AsPlayer(p), AsGod(g)) !=
+                         new_state.hp(AsPlayer(p), AsGod(g)) ) {
+                        res.push_back(AsGod(g));
+                    }
+                }
             }
         }
     }
@@ -163,18 +189,29 @@ State BoardTemplate::ToState(Player player) const {
     return state;
 }
 
-void TestMovement(Player player, God god, const BoardTemplate &t) {
-    State state = t.ToState(player);
+std::vector<std::string_view> GodNames(const std::ranges::range auto &r) {
+    std::vector<std::string_view> res;
+    for (auto god : r) res.push_back(GodName(god));
+    return res;
+}
 
+std::vector<std::string_view> FieldNames(const std::ranges::range auto &r) {
+    std::vector<std::string_view> res;
+    for (auto field : r) res.push_back(FieldName(field));
+    return res;
+}
+
+#define TestMovement(...) do { SCOPED_TRACE("called here"); TestMovementImpl(__VA_ARGS__); } while(0)
+
+void TestMovementImpl(Player player, God god, const BoardTemplate &t) {
+    State state = t.ToState(player);
     std::vector<field_t> expected;
     for (field_t field = 0; field < FIELD_COUNT; ++field) {
         if (t[field] == '+') expected.push_back(field);
     }
-
-    std::vector<field_t> received = MoveDestinations(state, god);
-    std::ranges::sort(received);
-
-    EXPECT_EQ(expected, received);
+    EXPECT_THAT(FieldNames(MoveDestinations(state, god)),
+            UnorderedElementsAreArray(FieldNames(expected)))
+        << "state=" << state.Encode();
 }
 
 enum class TestAttackOptions {
@@ -182,18 +219,30 @@ enum class TestAttackOptions {
     DEDUPLICATE
 };
 
-void TestAttack(Player player, God god, std::vector<God> expected, const BoardTemplate &t,
-        TestAttackOptions options=TestAttackOptions::DEFAULT) {
-    std::vector<God> received = AttackTargets(t.ToState(player), god);
-    std::ranges::sort(expected);
-    std::ranges::sort(received);
-    if (options == TestAttackOptions::DEDUPLICATE) {
-        received.erase(std::unique(received.begin(), received.end()), received.end());
+#define TestAttack(...) do { SCOPED_TRACE("called here"); TestAttackImpl(__VA_ARGS__); } while(0)
 
+void TestAttackImpl(Player player, God god, std::vector<God> expected, const BoardTemplate &t,
+        TestAttackOptions options=TestAttackOptions::DEFAULT) {
+    const State &state = t.ToState(player);
+    std::vector<God> received = AttackTargets(state, god);
+    if (options == TestAttackOptions::DEDUPLICATE) {
+        std::ranges::sort(received);
+        received.erase(std::unique(received.begin(), received.end()), received.end());
     }
-    EXPECT_THAT(received, UnorderedElementsAreArray(expected))
-        << "expected: " << expected << '\n'
-        << "received: " << received;
+    EXPECT_THAT(GodNames(received),
+            UnorderedElementsAreArray(GodNames(expected)))
+            << "state=" << state.Encode();
+}
+
+#define TestAreaAttack(...) do { SCOPED_TRACE("called here"); TestAreaAttackImpl(__VA_ARGS__); } while(0)
+
+// This finds all the heroes that were damaged by an attack.
+void TestAreaAttackImpl(Player player, God god, std::vector<God> expected, const BoardTemplate &t) {
+    const State &state = t.ToState(player);
+    std::vector<God> received = AreaAttackTargets(state, god);
+    EXPECT_THAT(GodNames(received),
+            UnorderedElementsAreArray(GodNames(expected)))
+            << "state=" << state.Encode();
 }
 
 }  // namespace
@@ -223,9 +272,6 @@ TEST(SpecialRule2, Basic) {
 
     EXPECT_THAT(turns,     Contains("Z>d2,N@e1,N!e2") );
     EXPECT_THAT(turns, Not(Contains("Z>d2,N@e1,N>f2")));
-
-    // TODO: check Aphrodite can still swap
-    // TODO: check Hades can still bind up to twice
 }
 
 TEST(SpecialRule3, Basic) {
@@ -1299,11 +1345,155 @@ TEST(Hermes, Special) {
     EXPECT_THAT(turns, Not(Contains("R!e9")));  // attack range not boosted
 }
 
-// TODO: Dionysus
-// TODO: Dionysus test with speed boost from Hermes
+TEST(Dionysus, Moves) {
+    TestMovement(LIGHT, DIONYSUS,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  .......  "
+            " ......... "
+            "  .......  "
+            "   .+.+.   "
+            "    ...    "
+            "     D     "
+    );
+
+    TestMovement(LIGHT, DIONYSUS,
+            "     .     "
+            "    ...    "
+            "   .+.+.   "
+            "  .+...+.  "
+            " ....D.... "
+            "  .+...+.  "
+            "   .+.+.   "
+            "    ...    "
+            "     .     "
+    );
+
+    // Dionysus can jump over opponents and friendly pieces
+    TestMovement(LIGHT, DIONYSUS,
+            "     .     "
+            "    ...    "
+            "   .+.+.   "
+            "  .+ZHE+.  "
+            " ...mDP... "
+            "  .+rao+.  "
+            "   .+.+.   "
+            "    ...    "
+            "     .     "
+    );
+
+    // Dionysus can move twice when boosted by Hermes
+    TestMovement(LIGHT, DIONYSUS,
+            "     +     "
+            "    +.+    "
+            "   .+++.   "
+            "  +++.+++  "
+            " +.+MD.+.+ "
+            "  +++.+++  "
+            "   .+++.   "
+            "    +.+    "
+            "     +     "
+    );
+
+    // Dionysus still cannot move through friendly pieces
+    TestMovement(LIGHT, DIONYSUS,
+            "     .     "
+            "    ...    "
+            "   .A.Z.   "
+            "  +O+.+P+  "
+            " +.+MD.+.+ "
+            "  +++.+++  "
+            "   .+++.   "
+            "    +.+    "
+            "     +     "
+    );
+}
+
+TEST(Dionysus, Attack) {
+    TestAreaAttack(LIGHT, DIONYSUS, {APHRODITE, POSEIDON},
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  .z.....  "
+            " a....M.p. "
+            "  .Do....  "
+            "   e....   "
+            "    ...    "
+            "     .     "
+    );
+    TestAreaAttack(DARK, DIONYSUS, {APHRODITE, POSEIDON},
+            "     .     "
+            "    ...    "
+            "   .O...   "
+            "  ..dE...  "
+            " A....m.P. "
+            "  ..Z....  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    );
+}
+
+TEST(Dionysus, Special) {
+    State state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   no.Z.   "
+            "  .......  "
+            " ....D.... "
+            "  .......  "
+            "   .a...   "
+            "    ...    "
+            "     .     "
+        ).ToState(LIGHT);
+
+    auto turns = TurnStrings(state);
+    EXPECT_THAT(turns, Contains("D+d3"));
+    EXPECT_THAT(turns, Not(Contains("D>d7")));  // cannot jump on shielded enemy
+    EXPECT_THAT(turns, Not(Contains("D+d7")));  // cannot jump on shielded enemy
+    EXPECT_THAT(turns, Not(Contains("D>f7")));  // cannot jump on ally
+    EXPECT_THAT(turns, Not(Contains("D+f7")));  // cannot jump on ally
+    EXPECT_FALSE(state.IsDead(DARK, APHRODITE));
+
+    ExecuteTurn(state, "D+d3");
+
+    EXPECT_EQ(state.PlayerAt(ParseField("d3")), LIGHT);
+    EXPECT_EQ(state.GodAt(ParseField("d3")), DIONYSUS);
+    EXPECT_TRUE(state.IsDead(DARK, APHRODITE));
+}
+
+TEST(Dionysus, SpecialWithSpeedBoost) {
+    State state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   ..o..   " // 7
+            "  ....h..  " // 6
+            " ...a.z... " // 5
+            "  .......  " // 4
+            "   .MD..   " // 3
+            "    ...    "
+            "     .     "
+        //    abcdefghi
+        ).ToState(LIGHT);
+
+    auto turns = TurnStrings(state);
+    EXPECT_THAT(turns, Contains("D>g4"));   // single move
+    EXPECT_THAT(turns, Contains("D>e5"));   // double move
+    EXPECT_THAT(turns, Contains("D+f5"));   // single kill
+    EXPECT_THAT(turns, Not(Contains("D>g4,D>e5"))); // should be merged
+    EXPECT_THAT(turns, Contains("D>g4,D+f6"));      // move then kill
+    EXPECT_THAT(turns, Contains("D+f5,D>d6"));      // kill then move
+    EXPECT_THAT(turns, Contains("D+f5,D+e7"));      // double kill!
+    EXPECT_THAT(turns, Contains("D+d5,D+e7"));      // double kill!
+}
+
+// Not included: Dionysus killing enemy at the gate allowing a double move.
+// (In that case, just stay at the gate to win.)
 
 // TODO: Artemis
 // TODO: Artemis test with speed boost from Hermes
+// TODO: Artemis cannot use withering moon on enemy protected by Athena
 
 // Hades moves up to 3 spaces in any single direction (same as Ares).
 TEST(Hades, Moves) {
@@ -1465,6 +1655,15 @@ TEST(Hades, SpecialAfterSummon) {
     EXPECT_THAT(turns, Contains("S@e1,S+d2,S!e1,S+f2"));
     EXPECT_THAT(turns, Contains("S@e1,S!e1"));
     EXPECT_THAT(turns, Contains("S@e1,S!e1,S+f2"));
+}
+
+TEST(Hades, SpecialAfterMoveSummon) {
+    State state = State::Initial();
+    state.Place(DARK,  ZEUS,       ParseField("d2"));
+    state.Place(DARK,  HEPHAESTUS, ParseField("f2"));
+    state.Place(LIGHT, ZEUS,       ParseField("e1"));
+
+    EXPECT_THAT(TurnStrings(state), Contains("Z>e2,S@e1,S+d2,S!e1,S+f2"));
 }
 
 TEST(Hades, SpecialBeforeSummon) {
@@ -1635,9 +1834,3 @@ TEST(Athena, Special) {
 
     EXPECT_EQ(state.hp(LIGHT, ZEUS), 10);  // no damage taken
 }
-
-// TODO: dionysus, artemis
-
-// TODO: dionysis cannot kill enemy protected by athena
-// TODO: dionysis can move twice when adjacent to hermes
-// TODO: arthemis cannot use withering moon on enemy protected athena

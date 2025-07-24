@@ -162,8 +162,8 @@ struct Area {
             case DIONYSUS:
                 return
                     (player == LIGHT)
-                        ? Area(r + 1, 0, r + 1, BOARD_SIZE)
-                        : Area(r - 1, 0, r - 1, BOARD_SIZE);
+                        ? Area(r + 1, 0, r + 1, BOARD_SIZE - 1)
+                        : Area(r - 1, 0, r - 1, BOARD_SIZE - 1);
 
             case HADES:
                 return Area::around(r, c, pantheon[god].rng);
@@ -198,9 +198,9 @@ void GenerateMovesOne(TurnBuilder &builder, field_t field, bool may_summon_after
 
     auto add_move_action = [&](field_t field) {
         auto scoped_action = builder.MakeScoped(Action{
-            .type      = Action::MOVE,
-            .god       = god,
-            .field     = field,
+            .type  = Action::MOVE,
+            .god   = god,
+            .field = field,
         });
         if (may_summon_after) {
             GenerateSummons(builder, false);
@@ -257,6 +257,49 @@ void GenerateMovesOne(TurnBuilder &builder, field_t field, bool may_summon_after
                 }
             }
         }
+
+        // Special case: Dionysus can jump on enemies to eliminate them.
+        // This covers all cases where there is at least 1 elimination.
+        // Note that these do not need to be deduplicated because they are
+        // intrinsically distinct.
+        if (god == DIONYSUS) {
+            assert(max_dist == 1 || max_dist == 2);
+            auto accessible = [&](field_t field) {
+                if (field == -1) return false;
+                if (!state.IsOccupied(field)) return true;
+                int p = state.PlayerAt(field);
+                if (p == player) return false;  // cannot jump on ally
+                if (state.has_fx(AsPlayer(p), AsGod(state.GodAt(field)), SHIELDED)) return false;
+                return true;
+            };
+            auto [r0, c0] = FieldCoords(field);
+            for (auto [dr, dc] : dirs) {
+                int8_t r1 = r0 + dr;
+                int8_t c1 = c0 + dc;
+                field_t field1 = FieldIndex(r1, c1);
+                if (!accessible(field1)) continue;
+                bool special1 = state.IsOccupied(field1);
+                auto scoped_action1 = builder.MakeScoped(Action{
+                    .type  = special1 ? Action::SPECIAL : Action::MOVE,
+                    .god   = god,
+                    .field = field1,
+                }, special1);
+                if (max_dist == 2) {
+                    for (auto [dr, dc] : dirs) {
+                        int8_t r2 = r1 + dr;
+                        int8_t c2 = c1 + dc;
+                        field_t field2 = FieldIndex(r2, c2);
+                        if (!accessible(field2)) continue;
+                        bool special2 = state.IsOccupied(field2);
+                        auto scoped_action2 = builder.MakeScoped(Action{
+                            .type  = special2 ? Action::SPECIAL : Action::MOVE,
+                            .god   = god,
+                            .field = field2,
+                        }, special1 || special2);
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -269,7 +312,6 @@ void GenerateMovesAll(TurnBuilder &builder, bool may_summon_after) {
             GenerateMovesOne(builder, field, field == gate && may_summon_after);
         }
     }
-    // TODO: support Hermes movement boost!
 }
 
 // Determines damage at an area killed an enemy at the opponent's gate,
@@ -607,10 +649,12 @@ int GetDamage(const State &state, Player player, God god, field_t target) {
 void DamageField(State &state, field_t field, Player opponent, int damage) {
     assert(field != -1 && state.PlayerAt(field) == opponent);
 
-    if (state.has_fx(opponent, state.GodAt(field), SHIELDED)) {
+    God god = state.GodAt(field);
+    assert(god != GOD_COUNT);
+    if (state.has_fx(opponent, god, SHIELDED)) {
         // Athena protects against damage
     } else {
-        state.DealDamage(opponent, field, damage);
+        state.DealDamage(opponent, god, damage);
     }
 }
 
@@ -754,6 +798,11 @@ void ExecuteAction(State &state, const Action &action) {
             switch (action.god) {
                 case APHRODITE:
                     AphroditeSwap(state, state.fi(player, APHRODITE), action.field);
+                    break;
+
+                case DIONYSUS:
+                    state.Kill(opponent, state.GodAt(action.field));
+                    state.Move(player, DIONYSUS, action.field);
                     break;
 
                 case HADES:

@@ -181,6 +181,10 @@ struct GodInfo {
 
 extern const GodInfo pantheon[GOD_COUNT];
 
+inline const char *GodName(int g) {
+    return 0 <= g && g < GOD_COUNT ? pantheon[g].name : "Nemo (unknown)";
+}
+
 // Returns the god with ascii_id == ch, or GOD_COUNT if none found.
 God GodById(char ch);
 
@@ -263,7 +267,9 @@ public:
 
     void Move(Player player, God god, field_t dst);
 
-    uint8_t DealDamage(Player player, field_t field, int damage);
+    void DealDamage(Player player, God god, int damage);
+
+    void Kill(Player player, God god);
 
     void Unchain(Player player, God god) {
         RemoveFx(player, god, CHAINED);
