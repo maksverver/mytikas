@@ -572,30 +572,6 @@ void GenerateSpecialsAphrodite(TurnBuilder &builder) {
     }
 }
 
-// Artemis may damage any enemy in exchange for taking equal damage herself.
-void GenerateSpecialsArtemis(TurnBuilder &builder) {
-    const State &state = builder.CurrentState();
-    Player player = state.NextPlayer();
-    Player opponent = Other(player);
-    for (field_t field = 0; field < FIELD_COUNT; ++field) {
-        if (state.PlayerAt(field) == opponent) {
-            God god = AsGod(state.GodAt(field));
-            if (!state.has_fx(opponent, god, SHIELDED)) {
-                TurnBuilder::Scoped action = builder.MakeScoped(Action{
-                    .type = Action::SPECIAL,
-                    .god = ARTEMIS,
-                    .field = field,
-                });
-                if (KilledEnemyAtGate(builder, Area::around(field, 0), opponent)) {
-                    // Special rule 3: when you kill an enemy on the opponent's
-                    // gate, you get an extra move.
-                    GenerateMovesAll(builder, false);
-                }
-            }
-        }
-    }
-}
-
 // Hades can use his special move (chain adjacent enemy) after:
 //
 //  - he is summoned (he may move after, and possibly special again)
