@@ -281,11 +281,14 @@ void GenerateMovesOne(TurnBuilder &builder, field_t field, bool may_summon_after
                 field_t field1 = FieldIndex(r1, c1);
                 if (!accessible(field1)) continue;
                 bool special1 = state.IsOccupied(field1);
-                auto scoped_action1 = builder.MakeScoped(Action{
-                    .type  = special1 ? Action::SPECIAL : Action::MOVE,
-                    .god   = god,
-                    .field = field1,
-                }, special1);
+                if (special1) {
+                    builder.PushAction(Action{
+                        .type  = special1 ? Action::SPECIAL : Action::MOVE,
+                        .god   = god,
+                        .field = field1,
+                    });
+                    builder.AddTurn();
+                }
                 if (max_dist == 2) {
                     for (auto [dr, dc] : dirs) {
                         int8_t r2 = r1 + dr;
@@ -299,6 +302,9 @@ void GenerateMovesOne(TurnBuilder &builder, field_t field, bool may_summon_after
                             .field = field2,
                         }, special1 || special2);
                     }
+                }
+                if (special1) {
+                    builder.PopAction();
                 }
             }
         }

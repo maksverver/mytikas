@@ -1482,7 +1482,7 @@ TEST(Dionysus, SpecialWithSpeedBoost) {
     EXPECT_THAT(turns, Contains("D>e5"));   // double move
     EXPECT_THAT(turns, Contains("D+f5"));   // single kill
     EXPECT_THAT(turns, Not(Contains("D>g4,D>e5"))); // should be merged
-    EXPECT_THAT(turns, Contains("D>g4,D+f6"));      // move then kill
+    EXPECT_THAT(turns, Contains("D+f6"));           // move then kill
     EXPECT_THAT(turns, Contains("D+f5,D>d6"));      // kill then move
     EXPECT_THAT(turns, Contains("D+f5,D+e7"));      // double kill!
     EXPECT_THAT(turns, Contains("D+d5,D+e7"));      // double kill!
