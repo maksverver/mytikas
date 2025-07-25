@@ -15,7 +15,7 @@ constexpr Dir knight_dirs[8] = {
     Dir{ +2, +1},
 };
 
-constexpr Dir all_dirs[8] = {
+constexpr Dir all8_dirs[8] = {
     // Orthogonal dirs
     Dir{ -1,  0},
     Dir{  0, +1},
@@ -28,9 +28,22 @@ constexpr Dir all_dirs[8] = {
     Dir{ +1, +1},
 };
 
-constexpr std::span<const Dir, 4> ortho_dirs{&all_dirs[0], &all_dirs[4]};
-constexpr std::span<const Dir, 4> diag_dirs{&all_dirs[4], &all_dirs[8]};
+constexpr std::span<const Dir, 4> ortho_dirs{&all8_dirs[0], &all8_dirs[4]};
+constexpr std::span<const Dir, 4> diag_dirs{&all8_dirs[4], &all8_dirs[8]};
 constexpr std::span<const Dir, 0> no_dirs;
+
+std::span<const Dir> GetDirs(Dirs dirs) {
+    switch (dirs & 7) {
+    case Dirs::NONE:       return no_dirs;
+    case Dirs::ORTHOGONAL: return ortho_dirs;
+    case Dirs::DIAGONAL:   return diag_dirs;
+    case Dirs::ALL8:       return all8_dirs;
+    case Dirs::KNIGHT:     return knight_dirs;
+    default:
+       assert(false);
+       return no_dirs;
+    }
+}
 
 const int8_t field_index_by_coords[BOARD_SIZE][BOARD_SIZE] = {
     { -1, -1, -1, -1,  0, -1, -1, -1, -1 },
@@ -103,22 +116,31 @@ extern const size_t neighbors_index[FIELD_COUNT + 1] = {
      232, 237, 242, 248, 253, 256,
 };
 
+
+#define NO_DIRS     Dirs::NONE
+#define ORTHO       Dirs::ORTHOGONAL
+#define DIAG        Dirs::DIAGONAL
+#define ALL8        Dirs::ALL8
+#define KNIGHT      Dirs::KNIGHT
+#define DIRECT(d)   (static_cast<Dirs>(d | Dirs::DIRECT))
+
 // Must keep this in sync with the Gods enum.
 constexpr GodInfo pantheon[GOD_COUNT] = {
-    // name        id  emoji  hit mov dmg rng  mov_direct atk_direct mov_dirs     atk_dirs     aura
-    {"Zeus",       'Z', "⚡️", 10,   1, 10,  3, false,     true,      all_dirs,    ortho_dirs,  UNAFFECTED   },
-    {"Hephaestus", 'H', "🔨",  9,   2,  7,  2, false,     true,      ortho_dirs,  ortho_dirs,  DAMAGE_BOOST },
-    {"hEra",       'E', "👸",  8,   2,  5,  2, false,     false,     diag_dirs,   diag_dirs,   UNAFFECTED   },
-    {"Poseidon",   'P', "🔱",  7,   3,  4,  0, false,     false,     ortho_dirs,  no_dirs,     UNAFFECTED   },
-    {"apOllo",     'O', "🏹",  6,   2,  2,  3, false,     false,     all_dirs,    all_dirs,    UNAFFECTED   },
-    {"Aphrodite",  'A', "🌹",  6,   3,  6,  1, false,     false,     all_dirs,    all_dirs,    UNAFFECTED   },
-    {"aRes",       'R', "⚔️",  5,   3,  5,  3, true,      true,      all_dirs,    all_dirs,    UNAFFECTED   },
-    {"herMes",     'M', "🪽",  5,   3,  3,  2, false,     true,      all_dirs,    all_dirs,    SPEED_BOOST  },
-    {"Dionysus",   'D', "🍇",  4,   1,  4,  0, false,     false,     knight_dirs, no_dirs,     UNAFFECTED   },
-    {"arTemis",    'T', "🦌",  4,   2,  4,  2, false,     true,      all_dirs,    diag_dirs,   UNAFFECTED   },
-    {"hadeS",      'S', "🐕",  3,   3,  3,  1, true,      false,     all_dirs,    no_dirs,     UNAFFECTED   },
-    {"atheNa",     'N', "🛡️",  3,   1,  3,  3, false,     true,      all_dirs,    all_dirs,    SHIELDED     },
+    // name        id  emoji  hit mov dmg rng  mov_dirs         atk_dirs     aura
+    {"Zeus",       'Z', "⚡️", 10,   1, 10,  3, ALL8,            DIRECT(ORTHO),  UNAFFECTED   },
+    {"Hephaestus", 'H', "🔨",  9,   2,  7,  2, ORTHO,           DIRECT(ORTHO),  DAMAGE_BOOST },
+    {"hEra",       'E', "👸",  8,   2,  5,  2, DIAG,            DIAG,           UNAFFECTED   },
+    {"Poseidon",   'P', "🔱",  7,   3,  4,  0, ORTHO,           NO_DIRS,        UNAFFECTED   },
+    {"apOllo",     'O', "🏹",  6,   2,  2,  3, ALL8,            ALL8,           UNAFFECTED   },
+    {"Aphrodite",  'A', "🌹",  6,   3,  6,  1, ALL8,            ALL8,           UNAFFECTED   },
+    {"aRes",       'R', "⚔️",  5,   3,  5,  3, DIRECT(ALL8),    DIRECT(ALL8),   UNAFFECTED   },
+    {"herMes",     'M', "🪽",  5,   3,  3,  2, ALL8,            DIRECT(ALL8),   SPEED_BOOST  },
+    {"Dionysus",   'D', "🍇",  4,   1,  4,  0, KNIGHT,          NO_DIRS,        UNAFFECTED   },
+    {"arTemis",    'T', "🦌",  4,   2,  4,  2, ALL8,            DIRECT(DIAG),   UNAFFECTED   },
+    {"hadeS",      'S', "🐕",  3,   3,  3,  1, DIRECT(ALL8),    NO_DIRS,        UNAFFECTED   },
+    {"atheNa",     'N', "🛡️",  3,   1,  3,  3, ALL8,            DIRECT(ALL8),   SHIELDED     },
 };
+
 
 God GodById(char ch) {
     int i = 0;

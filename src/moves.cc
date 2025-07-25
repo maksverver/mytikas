@@ -196,7 +196,7 @@ void GenerateMovesOne(TurnBuilder &builder, field_t field, bool may_summon_after
 
     const int speed_boost = state.has_fx(player, god, SPEED_BOOST) ? hermes_speed_boost : 0;
     const int max_dist = pantheon[god].mov + speed_boost;
-    std::span<const Dir> dirs = pantheon[god].mov_dirs;
+    std::span<const Dir> dirs = GetDirs(pantheon[god].mov_dirs);
 
     auto add_move_action = [&](field_t field) {
         auto scoped_action = builder.MakeScoped(Action{
@@ -218,7 +218,7 @@ void GenerateMovesOne(TurnBuilder &builder, field_t field, bool may_summon_after
     // The logic below is similar to GenerateAttacksOne(), defined below.
     // Try to keep the two in sync.
 
-    if (pantheon[god].mov_direct) {
+    if (pantheon[god].mov_dirs & Dirs::DIRECT) {
         // Direct moves only: scan each direction until we reach the end of the
         // board or an occupied field.
         Coords coords = FieldCoords(field);
@@ -365,7 +365,7 @@ void GenerateAttacksOne(TurnBuilder &builder, field_t field) {
     if (state.has_fx(player, god, CHAINED)) return;
 
     int max_dist = pantheon[god].rng;
-    std::span<const Dir> dirs = pantheon[god].atk_dirs;
+    std::span<const Dir> dirs = GetDirs(pantheon[god].atk_dirs);
 
     struct Attack {
         field_t field;
@@ -427,7 +427,7 @@ void GenerateAttacksOne(TurnBuilder &builder, field_t field) {
 
     // The logic below is similar to GenerateMovesOne(), defined above.
     // Try to keep the two in sync.
-    if (pantheon[god].atk_direct) {
+    if (pantheon[god].atk_dirs & Dirs::DIRECT) {
         // Direct attacks only: scan each direction until we reach the end of
         // the board or an occupied field.
         field_t field_data[8];
@@ -841,7 +841,7 @@ void ExecuteAction(State &state, const Action &action) {
         case Action::ATTACK:
             {
                 int damage = GetDamage(state, player, action.god, action.field);
-                if (pantheon[action.god].atk_dirs.empty()) {
+                if (pantheon[action.god].atk_dirs == Dirs::NONE) {
                     DamageArea(
                             state, Area::Get(player, action.god, action.field),
                             opponent, damage,

@@ -56,15 +56,32 @@ void PrintTurns(const std::vector<Turn> &turns) {
 }
 
 void PrintState(const State &state) {
+    static const char *dir_chars[8] = {" ", "+", "×", "🞶", "L", "?", "?", "?"};
+
     std::cout <<
-        "    God           Light side        Dark side\n"
-        "--  ------------  ----------------  ----------------\n";
+        "    God          Mov Atk Dmg Light side        Dark side\n"
+        "--  ------------ --- --- --- ----------------  ----------------\n";
     for (int i = 0; i < GOD_COUNT; ++i) {
+        const GodInfo &info = pantheon[i];
+
         std::cout
             << std::setw( 2) << std::right << i + 1 << "  "
-            << std::setw(12) << std::left << pantheon[i].name;
+            << std::setw(12) << std::left << info.name;
+
+        std::cout
+            << ' '
+            << int{info.mov}
+            << dir_chars[info.mov_dirs & 7]
+            << ((info.mov_dirs & Dirs::DIRECT) ? "/" : " ")
+            << ' '
+            << int{info.rng}
+            << dir_chars[info.atk_dirs & 7]
+            << ((info.atk_dirs & Dirs::DIRECT) ? "/" : " ")
+            << ' '
+            << std::setw(2) << std::right << int{info.dmg};
+
         for (int p = 0; p < 2; ++p) {
-            std::cout << "  " << static_cast<char>((p == 0 ? toupper : tolower)(pantheon[i].ascii_id)) << " ";
+            std::cout << "  " << static_cast<char>((p == 0 ? toupper : tolower)(info.ascii_id)) << " ";
             int      hp = state.hp(AsPlayer(p), AsGod(i));
             field_t  fi = state.fi(AsPlayer(p), AsGod(i));
             StatusFx fx = state.fx(AsPlayer(p), AsGod(i));
@@ -82,7 +99,7 @@ void PrintState(const State &state) {
                     << ' ';
             }
         }
-        std::cout << ' ' << pantheon[i].emoji_utf8 << '\n';
+        std::cout << ' ' << info.emoji_utf8 << '\n';
     }
     std::string encoded = state.Encode();
     std::cout << encoded << '\n';

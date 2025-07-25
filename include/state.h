@@ -156,6 +156,17 @@ inline God AsGod(int i) {
     return (God) i;
 }
 
+enum Dirs : uint8_t {
+    NONE       = 0,
+    ORTHOGONAL = 1,
+    DIAGONAL   = 2,
+    ALL8       = 3,
+    KNIGHT     = 4,
+    DIRECT     = 8,
+};
+
+std::span<const Dir> GetDirs(Dirs);
+
 enum StatusFx : uint8_t {
     UNAFFECTED   = 0,
     CHAINED      = 1,  // Chained by enemy Hades
@@ -172,10 +183,8 @@ struct GodInfo {
     uint8_t mov;  // movement speed
     uint8_t dmg;  // attack damage (base)
     uint8_t rng;  // attack range
-    bool mov_direct;
-    bool atk_direct;
-    std::span<const Dir> mov_dirs;
-    std::span<const Dir> atk_dirs;
+    Dirs mov_dirs;
+    Dirs atk_dirs;
     StatusFx aura;  // friendly effect (must be disjoint between heros)
 };
 
