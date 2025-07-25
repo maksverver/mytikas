@@ -51,14 +51,18 @@ struct Action {
 //   9. Attack (kill at gate), Move           (special rule 3)
 //  10. Move (kill at gate), Move             (special rule 3)
 //
-// Note: Move, Move is rare. The only case I can think of is if Ares kills an
+// Note: Move, Move is rare; the only case I can think of is if Ares kills an
 // enemy with 1 HP at the enemy's gate by moving next to them.
 //
-// Note: in theory, the rules permit a sequence of 4 actions (Move, Summon,
-// Attack, Move) by combining special rules 2 and 3, but this cannot happen
-// in practice, because no newly summoned god has an ability that can kill an
-// enemy at the opponent's gate.
+// Each of the primary actions (move, attack, summon) can be followed by a
+// special action (e.g., Hades can chain one enemy after moving or attacking).
+// That's why the maximum number of actions in a turn is 6 instead of 3.
 //
+// In theory, the rules permit a sequence of 4 actions (Move, Summon, Attack,
+// Move) by combining special rules 2 and 3. However, we cannot achieve this
+// with a regular attack, though it is possible if the attack is replaced with
+// Artemis special ability (Withering Moon). This only leads to a 6 action
+// sequence though (see moves_test.cc for details).
 struct Turn {
     static constexpr int MAX_ACTION = 6;
 

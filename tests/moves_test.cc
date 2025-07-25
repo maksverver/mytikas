@@ -2013,3 +2013,15 @@ TEST(Athena, Special) {
 
     EXPECT_EQ(state.hp(LIGHT, ZEUS), 10);  // no damage taken
 }
+
+TEST(Moves, SixActions) {
+    State state = State::Initial();
+    state.Place(LIGHT, HADES, ParseField("e1"));
+    state.Place(DARK, ZEUS, ParseField("d2"));
+    state.Place(DARK, HERA, ParseField("f2"));
+    state.Place(DARK, ATHENA, ParseField("e9"));
+    state.SetHpForTest(DARK, ATHENA, 1);
+
+    EXPECT_THAT(TurnStrings(state), Contains("S>e2,S+d2,T@e1,T+e9,S>e3,S+f2"))
+        << state.Encode();
+}
