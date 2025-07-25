@@ -19,6 +19,12 @@ inline Player AsPlayer(int i) {
     return (Player) i;
 }
 
+inline const char *PlayerName(int p) {
+    if (p == LIGHT) return "Light";
+    if (p == DARK)  return "Dark";
+    return "Nobody";
+}
+
 inline Player Other(Player p) { return (Player)(1 - p); }
 
 //

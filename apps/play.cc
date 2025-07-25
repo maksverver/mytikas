@@ -55,6 +55,43 @@ void PrintTurns(const std::vector<Turn> &turns) {
     }
 }
 
+void PrintDiff(const State &prev, const State &next) {
+    for (int p = 0; p < 2; ++p) {
+        for (int g = 0; g < 8; ++g) {
+            Player pl = AsPlayer(p);
+            God gd = AsGod(g);
+            field_t src = prev.fi(pl, gd);
+            field_t dst = next.fi(pl, gd);
+            if (src != dst) {
+                if (src == -1) {
+                    std::cout << PlayerName(p) << ' ' << GodName(g) << " was summoned at " << FieldName(dst) << ".\n";
+                } else if (dst == -1) {
+                    std::cout << PlayerName(p) << ' ' << GodName(g) << " died at " << FieldName(src) << ".\n";
+                } else {
+                    std::cout << PlayerName(p) << ' ' << GodName(g) << " moved from " << FieldName(src) << " to " << FieldName(dst) << ".\n";
+                }
+            }
+            int hp_lost = prev.hp(pl, gd) - next.hp(pl, gd);
+            if (hp_lost != 0) {
+                std::cout << p << g << " took " << hp_lost << "damage\n";
+            }
+            if (!prev.IsDead(pl, gd) && next.IsDead(pl, gd)) {
+                std::cout << p << g << " died.\n";
+            }
+            int old_fx = prev.fx(pl, gd);
+            int new_fx = next.fx(pl, gd);
+            for (int i = 0; i < 4; ++i) {
+                const char *effect_names[4] = {"chain", "damage boost", "speed boost", "invincibility"};
+                bool before = old_fx & (1 << i);
+                bool after  = new_fx & (1 << i);
+                if (before != after) {
+                    std::cout << PlayerName(p) << ' ' << GodName(g) << ' ' << (after ? "gained" : "lost") << ' ' << effect_names[i] << ".\n";
+                }
+            }
+        }
+    }
+}
+
 void PrintState(const State &state) {
     static const char *dir_chars[8] = {" ", "+", "×", "🞶", "L", "?", "?", "?"};
 
@@ -259,7 +296,10 @@ int main(int argc, char *argv[]) {
             std::cerr << "No move selected! Quitting.\n";
             break;
         }
+        State old_state = state;
         ExecuteTurn(state, *turn);
+        PrintDiff(old_state, state);
+        std::cout << '\n';
     }
     if (state.IsOver()) {
         PrintState(state);
