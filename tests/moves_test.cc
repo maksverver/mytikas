@@ -1491,9 +1491,188 @@ TEST(Dionysus, SpecialWithSpeedBoost) {
 // Not included: Dionysus killing enemy at the gate allowing a double move.
 // (In that case, just stay at the gate to win.)
 
-// TODO: Artemis
-// TODO: Artemis test with speed boost from Hermes
-// TODO: Artemis cannot use withering moon on enemy protected by Athena
+TEST(Artemis, Moves) {
+    TestMovement(LIGHT, ARTEMIS,
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  .......  "
+            " ......... "
+            "  .......  "
+            "   +++++   "
+            "    +++    "
+            "     T     "
+    );
+
+    TestMovement(LIGHT, ARTEMIS,
+            "     .     "
+            "    ...    "
+            "   +++++   "
+            "  .+++++.  "
+            " ++++T++++ "
+            "  .+++++.  "
+            "   +++++   "
+            "    ...    "
+            "     .     "
+    );
+
+    TestMovement(LIGHT, ARTEMIS,
+            "     .     "
+            "    ...    "
+            "   ....+   "
+            "  .....++  "
+            " .+++++++T "
+            "  .....++  "
+            "   ....+   "
+            "    ...    "
+            "     .     "
+    );
+
+    TestMovement(LIGHT, ARTEMIS,
+            "     .     "
+            "    ..+    "
+            "   ...++   "
+            "  ....+++  "
+            " ++++++++T "
+            "  ....++M  "
+            "   ...++   "
+            "    ...    "
+            "     .     "
+    );
+
+    TestMovement(LIGHT, ARTEMIS,
+            "     .     "
+            "    ...    "
+            "   ....+   "
+            "  .....++  "
+            " ......+ZT "
+            "  .....++  "
+            "   ....+   "
+            "    ...    "
+            "     .     "
+    );
+
+    TestMovement(LIGHT, ARTEMIS,
+            "     .     "
+            "    ...    "
+            "   ....+   "
+            "  .....++  "
+            " ...z++++T "
+            "  .....++  "
+            "   ....+   "
+            "    ...    "
+            "     .     "
+    );
+}
+
+TEST(Artemis, Attacks) {
+    TestAttack(LIGHT, ARTEMIS, {APOLLO, APHRODITE, POSEIDON},
+            "     .     "
+            "    ...    "
+            "   ....z   "
+            "  o......  "
+            " ......... "
+            "  ..Tm...  "
+            "   a.p..   "
+            "    ..e    "
+            "     .     "
+    );
+}
+
+// Withering Moon: deal 1 damage to any enemy and take 1 damage in return.
+TEST(Artemis, Special) {
+    State state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   ..z..   "
+            "  .......  "
+            " ....T..o. "
+            "  ......n  "
+            "   ..Z..   "
+            "    ...    "
+            "     .     "
+        ).ToState(LIGHT);
+
+    auto turns = TurnStrings(state);
+    ASSERT_THAT(turns, Contains("T+e7"));
+    ASSERT_THAT(turns, Not(Contains("T+e3")));  // ally
+    ASSERT_THAT(turns, Not(Contains("T+h5")));  // protected by Athena
+
+    ExecuteTurn(state, "T+e7");
+
+    EXPECT_EQ(state.hp(LIGHT, ARTEMIS), pantheon[ARTEMIS].hit - 1);
+    EXPECT_EQ(state.hp(DARK, ZEUS), pantheon[ZEUS].hit - 1);
+}
+
+TEST(Artemis, SpecialAfterSummon) {
+    State state = State::Initial();
+    state.Place(DARK, ATHENA, ParseField("c6"));
+
+    ExecuteTurn(state, "T@e1,T+c6");
+
+    EXPECT_EQ(state.hp(DARK, ATHENA), pantheon[ATHENA].hit - 1);
+}
+
+TEST(Artemis, SpecialDamageBoost) {
+    State state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   ..z..   "
+            "  .......  "
+            " ...HT.... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+        ).ToState(LIGHT);
+    EXPECT_EQ(state.fx(LIGHT, ARTEMIS), DAMAGE_BOOST);
+
+    ExecuteTurn(state, "T+e7");
+
+    EXPECT_EQ(state.hp(LIGHT, ARTEMIS), pantheon[ARTEMIS].hit - 2);
+    EXPECT_EQ(state.hp(DARK, ZEUS), pantheon[ZEUS].hit - 2);
+}
+
+// Edge case: when Artemis is at 1 HP herself and damage boosted
+// by Hephaestus, Withering Moon still does 2 damage to the target.
+TEST(Artemis, SpecialDamageBoostAt1HP) {
+    State state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   ..z..   "
+            "  .......  "
+            " ...HT.... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+        ).ToState(LIGHT);
+    state.SetHpForTest(LIGHT, ARTEMIS, 1);
+
+    ExecuteTurn(state, "T+e7");
+
+    EXPECT_EQ(state.hp(DARK, ZEUS), pantheon[ZEUS].hit - 2);
+    EXPECT_TRUE(state.IsDead(LIGHT, ARTEMIS));
+}
+
+// Killing an enemy at the opponent's gate with Artemis' special triggers
+// an extra move, just like a regular attack would.
+TEST(Artemis, SpecialExtraMove) {
+    State state = BoardTemplate(
+            "     n     "
+            "    ...    "
+            "   .....   "
+            "  .......  "
+            " ....T.... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+        ).ToState(LIGHT);
+    state.SetHpForTest(DARK,ATHENA, 1);
+
+    EXPECT_THAT(TurnStrings(state), Contains("T+e9,T>e7"));
+}
 
 // Hades moves up to 3 spaces in any single direction (same as Ares).
 TEST(Hades, Moves) {

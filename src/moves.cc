@@ -9,9 +9,11 @@
 
 namespace {
 
-constexpr int hermes_speed_boost = 1;
-constexpr int ares_special_dmg = 1;
-constexpr int ares_special_rng = 1;
+constexpr int hermes_speed_boost     = 1;
+constexpr int ares_special_dmg       = 1;
+constexpr int ares_special_rng       = 1;
+constexpr int artemis_horizontal_rng = 7;
+constexpr int artemis_special_dmg    = 1;
 
 // Helper class to collect the list of valid turns. Each turn consists of a
 // sequence of actions, which is generated recursively. This class helps
@@ -192,8 +194,8 @@ void GenerateMovesOne(TurnBuilder &builder, field_t field, bool may_summon_after
     // Cannot move when chained by Hades.
     if (state.has_fx(player, god, CHAINED)) return;
 
-    const int max_dist = pantheon[god].mov
-            + (state.has_fx(player, god, SPEED_BOOST) ? hermes_speed_boost : 0);
+    const int speed_boost = state.has_fx(player, god, SPEED_BOOST) ? hermes_speed_boost : 0;
+    const int max_dist = pantheon[god].mov + speed_boost;
     std::span<const Dir> dirs = pantheon[god].mov_dirs;
 
     auto add_move_action = [&](field_t field) {
@@ -298,6 +300,22 @@ void GenerateMovesOne(TurnBuilder &builder, field_t field, bool may_summon_after
                         }, special1 || special2);
                     }
                 }
+            }
+        }
+
+        // Artemis can move up to 7 sideways (or 8 when boosted by Hermes)
+        if (god == ARTEMIS) {
+            int horiz_dist = artemis_horizontal_rng + speed_boost;
+            auto [r, c] = FieldCoords(field);
+            for (int i = 1; i <= horiz_dist; ++i) {
+                field_t field = FieldIndex(r, c + i);
+                if (field == -1 || state.IsOccupied(field)) break;
+                if (i > max_dist) add_move_action(field);
+            }
+            for (int i = 1; i <= horiz_dist; ++i) {
+                field_t field = FieldIndex(r, c - i);
+                if (field == -1 || state.IsOccupied(field)) break;
+                if (i > max_dist) add_move_action(field);
             }
         }
     }
@@ -481,6 +499,27 @@ void GenerateAttacksOne(TurnBuilder &builder, field_t field) {
             }
         }
     }
+
+    // Artemis can use her Withering Moon special ability instead of attacking.
+    if (god == ARTEMIS) {
+        for (field_t field = 0; field < FIELD_COUNT; ++field) {
+            if (state.PlayerAt(field) == opponent) {
+                God god = AsGod(state.GodAt(field));
+                if (!state.has_fx(opponent, god, SHIELDED)) {
+                    TurnBuilder::Scoped action = builder.MakeScoped(Action{
+                        .type = Action::SPECIAL,
+                        .god = ARTEMIS,
+                        .field = field,
+                    });
+                    if (KilledEnemyAtGate(builder, Area::around(field, 0), opponent)) {
+                        // Special rule 3: when you kill an enemy on the opponent's
+                        // gate, you get an extra move.
+                        GenerateMovesAll(builder, false);
+                    }
+                }
+            }
+        }
+    }
 }
 
 void GenerateAttacksAll(TurnBuilder &builder) {
@@ -528,6 +567,30 @@ void GenerateSpecialsAphrodite(TurnBuilder &builder) {
             }
             if (state.GodAt(dst) == HADES) {
                 GenerateSpecialsHades(builder, false, false, false);
+            }
+        }
+    }
+}
+
+// Artemis may damage any enemy in exchange for taking equal damage herself.
+void GenerateSpecialsArtemis(TurnBuilder &builder) {
+    const State &state = builder.CurrentState();
+    Player player = state.NextPlayer();
+    Player opponent = Other(player);
+    for (field_t field = 0; field < FIELD_COUNT; ++field) {
+        if (state.PlayerAt(field) == opponent) {
+            God god = AsGod(state.GodAt(field));
+            if (!state.has_fx(opponent, god, SHIELDED)) {
+                TurnBuilder::Scoped action = builder.MakeScoped(Action{
+                    .type = Action::SPECIAL,
+                    .god = ARTEMIS,
+                    .field = field,
+                });
+                if (KilledEnemyAtGate(builder, Area::around(field, 0), opponent)) {
+                    // Special rule 3: when you kill an enemy on the opponent's
+                    // gate, you get an extra move.
+                    GenerateMovesAll(builder, false);
+                }
             }
         }
     }
@@ -594,12 +657,14 @@ void GenerateSummons(TurnBuilder &builder, bool may_move_after) {
 
             GenerateAttacksOne(builder, gate);
 
-            if (g == APHRODITE) {
-                GenerateSpecialsAphrodite(builder);
-            }
+            switch (g) {
+                case APHRODITE:
+                    GenerateSpecialsAphrodite(builder);
+                    break;
 
-            if (g == HADES) {
-                GenerateSpecialsHades(builder, may_move_after, true, false);
+                case HADES:
+                    GenerateSpecialsHades(builder, may_move_after, true, false);
+                    break;
             }
         }
     }
@@ -706,6 +771,17 @@ void AresLand(State &state, field_t field) {
     DamageArea(state, area, opponent, ares_special_dmg, 0);
 }
 
+// Executes Artemis' special ability: deal damage to an enemy and take
+// an equal amount of damage herself.
+void ArtemisDamage(State &state, Player player, field_t target) {
+    int damage = artemis_special_dmg;
+    if (state.has_fx(player, ARTEMIS, DAMAGE_BOOST)) ++damage;
+    Player opponent = AsPlayer(state.PlayerAt(target));
+    God god = AsGod(state.GodAt(target));
+    state.DealDamage(player, ARTEMIS, damage);
+    state.DealDamage(opponent, god, damage);
+}
+
 // Executes Aphrodite's special ability: swapping with a friendly god
 // anywhere on the board.
 //
@@ -803,6 +879,10 @@ void ExecuteAction(State &state, const Action &action) {
                 case DIONYSUS:
                     state.Kill(opponent, state.GodAt(action.field));
                     state.Move(player, DIONYSUS, action.field);
+                    break;
+
+                case ARTEMIS:
+                    ArtemisDamage(state, player, action.field);
                     break;
 
                 case HADES:
