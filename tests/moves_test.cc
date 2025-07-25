@@ -10,11 +10,41 @@ using ::testing::UnorderedElementsAreArray;
 #include "moves.h"
 
 #include <iostream>
+#include <iomanip>
 #include <cassert>
 #include <cctype>
 #include <string_view>
 #include <ranges>
 #include <vector>
+
+struct Escaped {
+    std::string_view sv;
+};
+
+std::ostream& operator<<(std::ostream &os, Escaped es) {
+    os << '"';
+    for (char ch : es.sv) {
+        if (ch == '"') {
+            os << "\\\"";
+        } else if (ch < ' ' || ch >= 127) {
+            os << '\\' << std::oct << (int)ch;
+        } else {
+            os << ch;
+        }
+    }
+    os << '"';
+    return os;
+}
+
+std::ostream& operator<<(std::ostream &os, const std::vector<std::string> &v) {
+    os << "{";
+    for (size_t i = 0; i < v.size(); ++i) {
+        if (i > 0) os << ", ";
+        os << Escaped{v[i]};
+    }
+    os << "}";
+    return os;
+}
 
 std::ostream& operator<<(std::ostream &os, const std::vector<field_t> &v) {
     os << "{";
@@ -237,7 +267,16 @@ void TestAreaAttackImpl(Player player, God god, std::vector<God> expected, const
 
 // Test fixture for all unit tests.
 class MovesTest : public testing::Test {
+public:
+    ~MovesTest() {
+        if (Test::HasFailure()) {
+            std::cout << "state=" << State::DebugPrint{state} << '\n';
+            std::cout << "turns=" << TurnStrings() << '\n';
+        }
+    }
+
 protected:
+
     State state = State::Initial();
 
     std::vector<std::string> TurnStrings() {
