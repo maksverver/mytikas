@@ -54,13 +54,6 @@ std::optional<Turn> FindTurn(const State &state, std::string_view sv) {
     return {};
 }
 
-void ExecuteTurn(State &state, std::string_view sv) {
-    ASSERT_THAT(TurnStrings(state), Contains(sv));
-    auto turn = FindTurn(state, sv);
-    ASSERT_TRUE(turn);
-    ExecuteTurn(state, *turn);
-}
-
 std::vector<field_t> MoveDestinations(const State &state, God god) {
     std::vector<field_t> res;
     for (const Turn &turn : GenerateTurns(state)) {
@@ -210,8 +203,7 @@ void TestMovementImpl(Player player, God god, const BoardTemplate &t) {
         if (t[field] == '+') expected.push_back(field);
     }
     EXPECT_THAT(FieldNames(MoveDestinations(state, god)),
-            UnorderedElementsAreArray(FieldNames(expected)))
-        << "state=" << state.Encode();
+            UnorderedElementsAreArray(FieldNames(expected)));
 }
 
 enum class TestAttackOptions {
@@ -230,8 +222,7 @@ void TestAttackImpl(Player player, God god, std::vector<God> expected, const Boa
         received.erase(std::unique(received.begin(), received.end()), received.end());
     }
     EXPECT_THAT(GodNames(received),
-            UnorderedElementsAreArray(GodNames(expected)))
-            << "state=" << state.Encode();
+            UnorderedElementsAreArray(GodNames(expected)));
 }
 
 #define TestAreaAttack(...) do { SCOPED_TRACE("called here"); TestAreaAttackImpl(__VA_ARGS__); } while(0)
@@ -241,44 +232,136 @@ void TestAreaAttackImpl(Player player, God god, std::vector<God> expected, const
     const State &state = t.ToState(player);
     std::vector<God> received = AreaAttackTargets(state, god);
     EXPECT_THAT(GodNames(received),
-            UnorderedElementsAreArray(GodNames(expected)))
-            << "state=" << state.Encode();
+            UnorderedElementsAreArray(GodNames(expected)));
 }
+
+// Test fixture for all unit tests.
+class MovesTest : public testing::Test {
+protected:
+    State state = State::Initial();
+
+    std::vector<std::string> TurnStrings() {
+        return ::TurnStrings(state);
+    }
+
+    std::optional<Turn> FindTurn(std::string_view sv) {
+        return ::FindTurn(state, sv);
+    }
+
+    void ExecuteTurn(std::string_view sv) {
+        ASSERT_THAT(TurnStrings(), Contains(sv));
+        auto turn = FindTurn(sv);
+        ASSERT_TRUE(turn);
+        ::ExecuteTurn(state, *turn);
+    }
+
+    void EndTurn() {
+        state.EndTurn();
+    }
+
+    std::vector<field_t> MoveDestinations(God god) {
+        return ::MoveDestinations(state, god);
+    }
+
+
+    std::vector<God> AttackTargets(God god) {
+        return ::AttackTargets(state, god);
+    }
+
+    std::vector<God> AreaAttackTargets(God god) {
+        return ::AreaAttackTargets(state, god);
+    }
+
+    int PlayerAt(field_t field) {
+        return state.PlayerAt(field);
+    }
+
+    int PlayerAt(std::string_view sv) {
+        return PlayerAt(ParseField(sv));
+    }
+
+    int GodAt(field_t field) {
+        return state.GodAt(field);
+    }
+
+    int GodAt(std::string_view sv) {
+        return GodAt(ParseField(sv));
+    }
+
+    bool IsDead(Player player, God god) {
+        return state.IsDead(player, god);
+    }
+
+    int hp(Player player, God god) {
+        return state.hp(player, god);
+    }
+
+    int fi(Player player, God god) {
+        return state.fi(player, god);
+    }
+
+    StatusFx fx(Player player, God god) {
+        return state.fx(player, god);
+    }
+
+    bool has_fx(Player player, God god, StatusFx mask) {
+        return state.has_fx(player, god, mask);
+    }
+
+    void SetHp(Player player, God god, int hp) {
+        state.SetHpForTest(player, god, hp);
+    }
+
+    void Chain(Player player, God god) {
+        return state.Chain(player, god);
+    }
+
+    void Unchain(Player player, God god) {
+        return state.Unchain(player, god);
+    }
+
+    void Place(Player player, God god, std::string_view field) {
+        state.Place(player, god, ParseField(field));
+    }
+
+    void Move(Player player, God god, std::string_view field) {
+        state.Move(player, god, ParseField(field));
+    }
+
+    void Remove(Player player, God god) {
+        state.Remove(player, god);
+    }
+};
 
 }  // namespace
 
-TEST(SpecialRule1, Basic) {
+TEST_F(MovesTest, SpecialRule1_Basic) {
     // On the turn that a character is “summoned” onto your Gates Space,
     // that character can also move or attack on the same turn.
+    Place(DARK, ZEUS, "e2");
 
-    State state = State::Initial();
-    state.Place(DARK, ZEUS, ParseField("e2"));
-
-    auto turns = TurnStrings(state);
+    auto turns = TurnStrings();
 
     EXPECT_THAT(turns, Contains("N@e1,N!e2"));
     EXPECT_THAT(turns, Contains("N@e1,N!e2"));
 }
 
-TEST(SpecialRule2, Basic) {
+TEST_F(MovesTest, SpecialRule2_Basic) {
     // If your home gate is occupied, you may move a piece and summon a god afterward,
     // who may then attack but not move, but may use a special ability.
+    Place(DARK, ZEUS, "e2");
+    Place(LIGHT, ZEUS, "e1");
 
-    State state = State::Initial();
-    state.Place(DARK, ZEUS, ParseField("e2"));
-    state.Place(LIGHT, ZEUS, ParseField("e1"));
-
-    auto turns = TurnStrings(state);
+    auto turns = TurnStrings();
 
     EXPECT_THAT(turns,     Contains("Z>d2,N@e1,N!e2") );
     EXPECT_THAT(turns, Not(Contains("Z>d2,N@e1,N>f2")));
 }
 
-TEST(SpecialRule3, Basic) {
+TEST_F(MovesTest, SpecialRule3_Basic) {
     // If you kill an enemy on their Gates Space, you may move any of your
     // characters that are already on the board immediately.
-
-    State state = BoardTemplate(
+    state = BoardTemplate(
             "     z     "
             "    ...    "
             "   E....   "
@@ -290,12 +373,12 @@ TEST(SpecialRule3, Basic) {
             "     .     "
         ).ToState(LIGHT);
 
-    auto turns = TurnStrings(state);
+    auto turns = TurnStrings();
     EXPECT_THAT(turns, Contains("Z!e9,Z>e5"));  // doesn't have to move to goal
     EXPECT_THAT(turns, Contains("Z!e9,E>e9"));  // doesn't have to be the same God
 }
 
-TEST(StatusEffects, Basic) {
+TEST_F(MovesTest, StatusEffects_Basic) {
     // 3  . . . P .
     // 2    Z z .
     // 1      N
@@ -306,66 +389,64 @@ TEST(StatusEffects, Basic) {
     God P = POSEIDON;
 
     // When summoning a god, its aura gets applied to neighboring allies:
-    State state = State::Initial();
-    state.Place(LIGHT, Z, ParseField("d2"));
-    state.Place(DARK,  Z, ParseField("e2"));
-    state.Place(LIGHT, P, ParseField("f3"));
-    state.Place(LIGHT, N, ParseField("e1"));
-    EXPECT_EQ(state.fx(LIGHT, N), UNAFFECTED);
-    EXPECT_EQ(state.fx(LIGHT, Z), SHIELDED);
-    EXPECT_EQ(state.fx(LIGHT, P), UNAFFECTED);
-    EXPECT_EQ(state.fx(DARK,  Z), UNAFFECTED);
+    Place(LIGHT, Z, "d2");
+    Place(DARK,  Z, "e2");
+    Place(LIGHT, P, "f3");
+    Place(LIGHT, N, "e1");
+    EXPECT_EQ(fx(LIGHT, N), UNAFFECTED);
+    EXPECT_EQ(fx(LIGHT, Z), SHIELDED);
+    EXPECT_EQ(fx(LIGHT, P), UNAFFECTED);
+    EXPECT_EQ(fx(DARK,  Z), UNAFFECTED);
 
     // Ally moving away removes status:
-    state.Move(LIGHT, Z, ParseField("c3"));
-    EXPECT_EQ(state.fx(LIGHT, N), UNAFFECTED);
-    EXPECT_EQ(state.fx(LIGHT, Z), UNAFFECTED);
-    EXPECT_EQ(state.fx(LIGHT, P), UNAFFECTED);
-    EXPECT_EQ(state.fx(DARK,  Z), UNAFFECTED);
+    Move(LIGHT, Z, "c3");
+    EXPECT_EQ(fx(LIGHT, N), UNAFFECTED);
+    EXPECT_EQ(fx(LIGHT, Z), UNAFFECTED);
+    EXPECT_EQ(fx(LIGHT, P), UNAFFECTED);
+    EXPECT_EQ(fx(DARK,  Z), UNAFFECTED);
 
     // Ally moving towards adds status:
-    state.Move(LIGHT, P, ParseField("f2"));
-    EXPECT_EQ((int)state.fx(LIGHT, N), (int)UNAFFECTED);
-    EXPECT_EQ(state.fx(LIGHT, Z), UNAFFECTED);
-    EXPECT_EQ(state.fx(LIGHT, P), SHIELDED);
-    EXPECT_EQ(state.fx(DARK,  Z), UNAFFECTED);
+    Move(LIGHT, P, "f2");
+    EXPECT_EQ(fx(LIGHT, N), UNAFFECTED);
+    EXPECT_EQ(fx(LIGHT, Z), UNAFFECTED);
+    EXPECT_EQ(fx(LIGHT, P), SHIELDED);
+    EXPECT_EQ(fx(DARK,  Z), UNAFFECTED);
 
     // Moving towards ally adds status, way from ally removes status:
-    state.Move(LIGHT, N, ParseField("d2"));
-    EXPECT_EQ(state.fx(LIGHT, N), UNAFFECTED);
-    EXPECT_EQ(state.fx(LIGHT, Z), SHIELDED);
-    EXPECT_EQ(state.fx(LIGHT, P), UNAFFECTED);
-    EXPECT_EQ(state.fx(DARK,  Z), UNAFFECTED);
+    Move(LIGHT, N, "d2");
+    EXPECT_EQ(fx(LIGHT, N), UNAFFECTED);
+    EXPECT_EQ(fx(LIGHT, Z), SHIELDED);
+    EXPECT_EQ(fx(LIGHT, P), UNAFFECTED);
+    EXPECT_EQ(fx(DARK,  Z), UNAFFECTED);
 
     // Removing god removes status.
-    state.Remove(LIGHT, N);
-    EXPECT_EQ(state.fx(LIGHT, N), UNAFFECTED);
-    EXPECT_EQ(state.fx(LIGHT, Z), UNAFFECTED);
-    EXPECT_EQ(state.fx(LIGHT, P), UNAFFECTED);
-    EXPECT_EQ(state.fx(DARK,  Z), UNAFFECTED);
+    Remove(LIGHT, N);
+    EXPECT_EQ(fx(LIGHT, N), UNAFFECTED);
+    EXPECT_EQ(fx(LIGHT, Z), UNAFFECTED);
+    EXPECT_EQ(fx(LIGHT, P), UNAFFECTED);
+    EXPECT_EQ(fx(DARK,  Z), UNAFFECTED);
 }
 
-TEST(StatusEffects, Overlap) {
-    State state = State::Initial();
-    state.Place(LIGHT, ZEUS,       ParseField("e1"));
-    state.Place(LIGHT, HEPHAESTUS, ParseField("d2"));
-    state.Place(LIGHT, ATHENA,     ParseField("e2"));
-    state.Place(LIGHT, HERMES,     ParseField("f2"));
+TEST_F(MovesTest, StatusEffects_Overlap) {
+    Place(LIGHT, ZEUS,       "e1");
+    Place(LIGHT, HEPHAESTUS, "d2");
+    Place(LIGHT, ATHENA,     "e2");
+    Place(LIGHT, HERMES,     "f2");
 
-    EXPECT_EQ(state.fx(LIGHT, ZEUS),        DAMAGE_BOOST | SPEED_BOOST | SHIELDED);
-    EXPECT_EQ(state.fx(LIGHT, HEPHAESTUS),  SHIELDED);
-    EXPECT_EQ(state.fx(LIGHT, ATHENA),      DAMAGE_BOOST | SPEED_BOOST);
-    EXPECT_EQ(state.fx(LIGHT, HERMES),      SHIELDED);
+    EXPECT_EQ(fx(LIGHT, ZEUS),        DAMAGE_BOOST | SPEED_BOOST | SHIELDED);
+    EXPECT_EQ(fx(LIGHT, HEPHAESTUS),  SHIELDED);
+    EXPECT_EQ(fx(LIGHT, ATHENA),      DAMAGE_BOOST | SPEED_BOOST);
+    EXPECT_EQ(fx(LIGHT, HERMES),      SHIELDED);
 
-    state.Remove(LIGHT, ATHENA);
+    Remove(LIGHT, ATHENA);
 
-    EXPECT_EQ(state.fx(LIGHT, ZEUS),       DAMAGE_BOOST | SPEED_BOOST);
-    EXPECT_EQ(state.fx(LIGHT, HEPHAESTUS), UNAFFECTED);
-    EXPECT_EQ(state.fx(LIGHT, ATHENA),     UNAFFECTED);
-    EXPECT_EQ(state.fx(LIGHT, HERMES),     UNAFFECTED);
+    EXPECT_EQ(fx(LIGHT, ZEUS),       DAMAGE_BOOST | SPEED_BOOST);
+    EXPECT_EQ(fx(LIGHT, HEPHAESTUS), UNAFFECTED);
+    EXPECT_EQ(fx(LIGHT, ATHENA),     UNAFFECTED);
+    EXPECT_EQ(fx(LIGHT, HERMES),     UNAFFECTED);
 }
 
-TEST(Zeus, Moves) {
+TEST_F(MovesTest, Zeus_Moves) {
     TestMovement(LIGHT, ZEUS,
             "     .     "
             "    ...    "
@@ -403,7 +484,7 @@ TEST(Zeus, Moves) {
     );
 }
 
-TEST(Zeus, Attacks) {
+TEST_F(MovesTest, Zeus_Attacks) {
     TestAttack(LIGHT, ZEUS, {APOLLO, POSEIDON},
             "     .     "
             "    ...    "
@@ -418,7 +499,7 @@ TEST(Zeus, Attacks) {
 }
 
 // Lighting Bolt: Attack can pass over friendly or enemy pieces
-TEST(Zeus, Special) {
+TEST_F(MovesTest, Zeus_Special) {
     TestAttack(LIGHT, ZEUS, {POSEIDON, APOLLO, DIONYSUS, ATHENA, HERA},
             "     .     "
             "    ...    "
@@ -432,7 +513,7 @@ TEST(Zeus, Special) {
     );
 }
 
-TEST(Hephaestus, Moves) {
+TEST_F(MovesTest, Hephaestus_Moves) {
     TestMovement(LIGHT, HEPHAESTUS,
             "     .     "
             "    ...    "
@@ -470,7 +551,7 @@ TEST(Hephaestus, Moves) {
     );
 }
 
-TEST(Hephaestus, Attacks) {
+TEST_F(MovesTest, Hephaestus_Attacks) {
     TestAttack(LIGHT, HEPHAESTUS, {APOLLO, POSEIDON},
             "     .     "
             "    ...    "
@@ -485,8 +566,8 @@ TEST(Hephaestus, Attacks) {
 }
 
 // Hephaestus boosts attack damage of an adjacent friend by 1
-TEST(Hephaestus, Special) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Hephaestus_Special) {
+    state = BoardTemplate(
             "     .     "
             "    ...    "
             "   ..z..   "
@@ -498,21 +579,21 @@ TEST(Hephaestus, Special) {
             "     .     "
         ).ToState(LIGHT);
 
-    EXPECT_EQ(state.hp(DARK, ZEUS), 10);
+    EXPECT_EQ(hp(DARK, ZEUS), 10);
 
-    ExecuteTurn(state, "N!e7");
+    ExecuteTurn("N!e7");
 
-    EXPECT_EQ(state.hp(DARK, ZEUS), 7);  // -3
+    EXPECT_EQ(hp(DARK, ZEUS), 7);  // -3
 
-    ExecuteTurn(state, "Z>e8");
-    ExecuteTurn(state, "H>d5");
-    ExecuteTurn(state, "Z>e7");
-    ExecuteTurn(state, "N!e7");
+    ExecuteTurn("Z>e8");
+    ExecuteTurn("H>d5");
+    ExecuteTurn("Z>e7");
+    ExecuteTurn("N!e7");
 
-    EXPECT_EQ(state.hp(DARK, ZEUS), 3);  // -4
+    EXPECT_EQ(hp(DARK, ZEUS), 3);  // -4
 }
 
-TEST(Hera, Moves) {
+TEST_F(MovesTest, Hera_Moves) {
     TestMovement(LIGHT, HERA,
             "     .     "
             "    ...    "
@@ -550,7 +631,7 @@ TEST(Hera, Moves) {
     );
 }
 
-TEST(Hera, Attacks) {
+TEST_F(MovesTest, Hera_Attacks) {
     TestAttack(LIGHT, HERA, {DIONYSUS, APOLLO},
             "     .     "
             "    ...    "
@@ -566,8 +647,8 @@ TEST(Hera, Attacks) {
 
 // Hera does double damage when attacking from behind or the side
 // (note that "behind" depends on which side she's on!)
-TEST(Hera, Special) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Hera_Special) {
+    state = BoardTemplate(
             "     .     "
             "    ...    "
             "   P.p..   "
@@ -579,22 +660,22 @@ TEST(Hera, Special) {
             "     .     "
     ).ToState(LIGHT);
 
-    ExecuteTurn(state, "E!e7");
-    ExecuteTurn(state, "E!c7");
-    ExecuteTurn(state, "E!a5");
-    ExecuteTurn(state, "E!g5");
-    ExecuteTurn(state, "E!e3");
-    ExecuteTurn(state, "E!c3");
+    ExecuteTurn("E!e7");
+    ExecuteTurn("E!c7");
+    ExecuteTurn("E!a5");
+    ExecuteTurn("E!g5");
+    ExecuteTurn("E!e3");
+    ExecuteTurn("E!c3");
 
-    EXPECT_EQ(state.hp(DARK,  POSEIDON),   2);  // 7 hp - 5 dmg
-    EXPECT_EQ(state.hp(LIGHT, POSEIDON),   0);
-    EXPECT_EQ(state.hp(DARK,  ZEUS),       0);
-    EXPECT_EQ(state.hp(LIGHT, ZEUS),       0);
-    EXPECT_EQ(state.hp(DARK,  HEPHAESTUS), 0);
-    EXPECT_EQ(state.hp(LIGHT, HEPHAESTUS), 4);  // 9 hp - 5 dmg
+    EXPECT_EQ(hp(DARK,  POSEIDON),   2);  // 7 hp - 5 dmg
+    EXPECT_EQ(hp(LIGHT, POSEIDON),   0);
+    EXPECT_EQ(hp(DARK,  ZEUS),       0);
+    EXPECT_EQ(hp(LIGHT, ZEUS),       0);
+    EXPECT_EQ(hp(DARK,  HEPHAESTUS), 0);
+    EXPECT_EQ(hp(LIGHT, HEPHAESTUS), 4);  // 9 hp - 5 dmg
 }
 
-TEST(Poseidon, Moves) {
+TEST_F(MovesTest, Poseidon_Moves) {
     TestMovement(LIGHT, POSEIDON,
             "     .     "
             "    ...    "
@@ -632,7 +713,7 @@ TEST(Poseidon, Moves) {
     );
 }
 
-TEST(Poseidon, AttackLightWithKnockback) {
+TEST_F(MovesTest, Poseidon_AttackLightWithKnockback) {
     State old_state = BoardTemplate(
             "     .     "
             "    ...    "
@@ -660,15 +741,15 @@ TEST(Poseidon, AttackLightWithKnockback) {
     new_state.DecHpForTest(DARK, HEPHAESTUS, 4);
     new_state.DecHpForTest(DARK, ZEUS,       4);
 
-    State state = old_state;
-    ExecuteTurn(state, "P!e5");
+    state = old_state;
+    ExecuteTurn("P!e5");
     EXPECT_EQ(state, new_state)
         << "Expected:\n" << State::DebugPrint(new_state) << '\n'
         << "Received:\n" << State::DebugPrint(state) << '\n';
 }
 
 // This is just the reflected version of the above test.
-TEST(Poseidon, AttackDarkWithKnockback) {
+TEST_F(MovesTest, Poseidon_AttackDarkWithKnockback) {
     State old_state = BoardTemplate(
             "     .     "
             "    ...    "
@@ -696,14 +777,14 @@ TEST(Poseidon, AttackDarkWithKnockback) {
     new_state.DecHpForTest(LIGHT, HEPHAESTUS, 4);
     new_state.DecHpForTest(LIGHT, ZEUS,       4);
 
-    State state = old_state;
-    ExecuteTurn(state, "P!e5");
+    state = old_state;
+    ExecuteTurn("P!e5");
     EXPECT_EQ(state, new_state)
         << "Expected:\n" << State::DebugPrint(new_state) << '\n'
         << "Received:\n" << State::DebugPrint(state) << '\n';
 }
 
-TEST(Poseidon, AttackPushBackBlocked) {
+TEST_F(MovesTest, Poseidon_AttackPushBackBlocked) {
     State old_state = BoardTemplate(
             "     .     "
             "    .m.    "
@@ -732,8 +813,8 @@ TEST(Poseidon, AttackPushBackBlocked) {
     new_state.DecHpForTest(DARK, APOLLO,     4);
     new_state.DecHpForTest(DARK, HERA,       4);
 
-    State state = old_state;
-    ExecuteTurn(state, "P!d5");
+    state = old_state;
+    ExecuteTurn("P!d5");
     EXPECT_EQ(state, new_state)
         << "Expected:\n" << State::DebugPrint(new_state) << '\n'
         << "Received:\n" << State::DebugPrint(state) << '\n';
@@ -742,8 +823,8 @@ TEST(Poseidon, AttackPushBackBlocked) {
 // This is debatable: when Poseidon knocks chained enemies back, do they
 // become free? In the current implementation yes, even if they remain adjacent
 // to Hades (as Zeus in the example below, but not Apollo).
-TEST(Poseidon, AttackKnocksBackChainedEnemies) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Poseidon_AttackKnocksBackChainedEnemies) {
+    state = BoardTemplate(
             "     .     "
             "    ...    "
             "   ..o..   "
@@ -755,15 +836,15 @@ TEST(Poseidon, AttackKnocksBackChainedEnemies) {
             "     .     "
     ).ToState(LIGHT);
 
-    state.Chain(DARK, APOLLO);
-    state.Chain(DARK, ZEUS);
-    EXPECT_EQ(state.fx(DARK, APOLLO), CHAINED);
-    EXPECT_EQ(state.fx(DARK, ZEUS),   CHAINED);
+    Chain(DARK, APOLLO);
+    Chain(DARK, ZEUS);
+    EXPECT_EQ(fx(DARK, APOLLO), CHAINED);
+    EXPECT_EQ(fx(DARK, ZEUS),   CHAINED);
 
-    ExecuteTurn(state, "P!e5");
+    ExecuteTurn("P!e5");
 
-    EXPECT_EQ(state.fx(DARK, APOLLO), UNAFFECTED);
-    EXPECT_EQ(state.fx(DARK, ZEUS),   UNAFFECTED);
+    EXPECT_EQ(fx(DARK, APOLLO), UNAFFECTED);
+    EXPECT_EQ(fx(DARK, ZEUS),   UNAFFECTED);
 }
 
 // Similar to the above: when Poseidon knocks back enemy Hades, chained allies
@@ -775,8 +856,8 @@ TEST(Poseidon, AttackKnocksBackChainedEnemies) {
 // would be killed by Poseidon's attack and everyone is released for that
 // reason. (And also note that Athena needs to be out of range of Posseidon,
 // or she would get killed on the same turn and then cannot protect Hades).
-TEST(Poseidon, AttackKnocksBackHades) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Poseidon_AttackKnocksBackHades) {
+    state = BoardTemplate(
             "     .     "
             "    ...    "
             "   ...n.   "
@@ -788,20 +869,20 @@ TEST(Poseidon, AttackKnocksBackHades) {
             "     .     "
     ).ToState(LIGHT);
 
-    state.Chain(LIGHT, APOLLO);
-    state.Chain(LIGHT, ZEUS);
-    EXPECT_EQ(state.fx(LIGHT, APOLLO), CHAINED);
-    EXPECT_EQ(state.fx(LIGHT, ZEUS),   CHAINED);
+    Chain(LIGHT, APOLLO);
+    Chain(LIGHT, ZEUS);
+    EXPECT_EQ(fx(LIGHT, APOLLO), CHAINED);
+    EXPECT_EQ(fx(LIGHT, ZEUS),   CHAINED);
 
-    ExecuteTurn(state, "P!d5");
+    ExecuteTurn("P!d5");
 
-    EXPECT_EQ(state.fx(LIGHT, APOLLO), UNAFFECTED);  // knocked out of range
-    EXPECT_EQ(state.fx(LIGHT, ZEUS),   CHAINED);     // still in range!
+    EXPECT_EQ(fx(LIGHT, APOLLO), UNAFFECTED);  // knocked out of range
+    EXPECT_EQ(fx(LIGHT, ZEUS),   CHAINED);     // still in range!
 }
 
 // Note: because Athena has fewer HP (3) than Poseidon's base damage (4)
 // she always dies if she's in range.
-TEST(Poseidon, AthenaDies) {
+TEST_F(MovesTest, Poseidon_AthenaDies) {
     State old_state = BoardTemplate(
             "     .     "
             "    ...    "
@@ -827,14 +908,14 @@ TEST(Poseidon, AthenaDies) {
     new_state.DecHpForTest(DARK, ZEUS,       4);
     new_state.DecHpForTest(DARK, HEPHAESTUS, 4);
 
-    State state = old_state;
-    ExecuteTurn(state, "P!e5");
+    state = old_state;
+    ExecuteTurn("P!e5");
     EXPECT_EQ(state, new_state)
         << "Expected:\n" << State::DebugPrint(new_state) << '\n'
         << "Received:\n" << State::DebugPrint(state) << '\n';
 }
 
-TEST(Poseidon, AthenaPreventsDamageButNotKnockacb) {
+TEST_F(MovesTest, Poseidon_AthenaPreventsDamageButNotKnockacb) {
     State old_state = BoardTemplate(
             "     .     "
             "    ...    "
@@ -860,14 +941,14 @@ TEST(Poseidon, AthenaPreventsDamageButNotKnockacb) {
     new_state.DecHpForTest(DARK, ZEUS, 4);
     // Note: Hephaestus takes no damage but is knocked back.
 
-    State state = old_state;
-    ExecuteTurn(state, "P!d5");
+    state = old_state;
+    ExecuteTurn("P!d5");
     EXPECT_EQ(state, new_state)
         << "Expected:\n" << State::DebugPrint(new_state) << '\n'
         << "Received:\n" << State::DebugPrint(state) << '\n';
 }
 
-TEST(Apollo, Moves) {
+TEST_F(MovesTest, Apollo_Moves) {
     TestMovement(LIGHT, APOLLO,
             "     .     "
             "    ...    "
@@ -905,7 +986,7 @@ TEST(Apollo, Moves) {
     );
 }
 
-TEST(Apollo, Attacks) {
+TEST_F(MovesTest, Apollo_Attacks) {
     TestAttack(LIGHT, APOLLO, {DIONYSUS, HERA},
             "     z     "
             "    ...    "
@@ -920,28 +1001,27 @@ TEST(Apollo, Attacks) {
 }
 
 // Apollo does +1 damage when attacking directly.
-TEST(Apollo, Special) {
-    State state = State::Initial();
-    state.Place(LIGHT, APOLLO, ParseField("e5"));
-    state.Place(DARK,  ZEUS,   ParseField("c7"));
+TEST_F(MovesTest, Apollo_Special) {
+    Place(LIGHT, APOLLO, "e5");
+    Place(DARK,  ZEUS,   "c7");
 
-    ExecuteTurn(state, "O!c7");
+    ExecuteTurn("O!c7");
 
-    EXPECT_EQ(state.hp(DARK, ZEUS),  7);  // 10 - 3, direct diagonal attack
+    EXPECT_EQ(hp(DARK, ZEUS),  7);  // 10 - 3, direct diagonal attack
 
-    ExecuteTurn(state, "Z>c6");
-    ExecuteTurn(state, "O!c6");
+    ExecuteTurn("Z>c6");
+    ExecuteTurn("O!c6");
 
-    EXPECT_EQ(state.hp(DARK,  ZEUS), 5);  // 7 - 2, indirect attack
+    EXPECT_EQ(hp(DARK,  ZEUS), 5);  // 7 - 2, indirect attack
 
-    ExecuteTurn(state, "Z>c5");
-    ExecuteTurn(state, "O!c5");
+    ExecuteTurn("Z>c5");
+    ExecuteTurn("O!c5");
 
-    EXPECT_EQ(state.hp(DARK,  ZEUS), 2);  // 5 - 3, direct horizontal attack
+    EXPECT_EQ(hp(DARK,  ZEUS), 2);  // 5 - 3, direct horizontal attack
 }
 
 // Aphrodite moves the same as Hermes
-TEST(Aphrodite, Moves) {
+TEST_F(MovesTest, Aphrodite_Moves) {
     TestMovement(LIGHT, APHRODITE,
             "     .     "
             "    ...    "
@@ -979,7 +1059,7 @@ TEST(Aphrodite, Moves) {
     );
 }
 
-TEST(Aphrodite, Attacks) {
+TEST_F(MovesTest, Aphrodite_Attacks) {
     TestAttack(LIGHT, APHRODITE, {APOLLO, POSEIDON},
             "     .     "
             "    ...    "
@@ -994,8 +1074,8 @@ TEST(Aphrodite, Attacks) {
 }
 
 // Aphrodite can swap with an ally anywhere on the board.
-TEST(Aphrodite, Special) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Aphrodite_Special) {
+    state = BoardTemplate(
             "     .     "
             "    M..    "
             "   .H...   "
@@ -1007,12 +1087,12 @@ TEST(Aphrodite, Special) {
             "     .     "
     ).ToState(LIGHT);
 
-    EXPECT_EQ(state.fx(LIGHT, HEPHAESTUS), SPEED_BOOST);
-    EXPECT_EQ(state.fx(LIGHT, APHRODITE),  SHIELDED);
-    EXPECT_EQ(state.fx(LIGHT, HERMES),     DAMAGE_BOOST);
-    EXPECT_EQ(state.fx(LIGHT, ATHENA),     UNAFFECTED);
+    EXPECT_EQ(fx(LIGHT, HEPHAESTUS), SPEED_BOOST);
+    EXPECT_EQ(fx(LIGHT, APHRODITE),  SHIELDED);
+    EXPECT_EQ(fx(LIGHT, HERMES),     DAMAGE_BOOST);
+    EXPECT_EQ(fx(LIGHT, ATHENA),     UNAFFECTED);
 
-    ExecuteTurn(state, "A+d8");
+    ExecuteTurn("A+d8");
 
     EXPECT_EQ(state,
         BoardTemplate(
@@ -1028,57 +1108,54 @@ TEST(Aphrodite, Special) {
         ).ToState(DARK));
 
     // Auras are recomputed based on new positions:
-    EXPECT_EQ(state.fx(LIGHT, HEPHAESTUS), UNAFFECTED);
-    EXPECT_EQ(state.fx(LIGHT, APHRODITE),  DAMAGE_BOOST);
-    EXPECT_EQ(state.fx(LIGHT, HERMES),     SHIELDED);
-    EXPECT_EQ(state.fx(LIGHT, ATHENA),     SPEED_BOOST);
+    EXPECT_EQ(fx(LIGHT, HEPHAESTUS), UNAFFECTED);
+    EXPECT_EQ(fx(LIGHT, APHRODITE),  DAMAGE_BOOST);
+    EXPECT_EQ(fx(LIGHT, HERMES),     SHIELDED);
+    EXPECT_EQ(fx(LIGHT, ATHENA),     SPEED_BOOST);
 }
 
 // Special rule 1: Aphrodite can swap on the turn she is summoned
 // (This is clarified under "special rules")
-TEST(Aphrodite, Special1) {
-    State state = State::Initial();
-    state.Place(LIGHT, POSEIDON, ParseField("d8"));
+TEST_F(MovesTest, Aphrodite_Special1) {
+    Place(LIGHT, POSEIDON, "d8");
 
-    EXPECT_EQ(state.fi(LIGHT, POSEIDON), ParseField("d8"));
+    EXPECT_EQ(fi(LIGHT, POSEIDON), ParseField("d8"));
 
-    ExecuteTurn(state, "A@e1,A+d8");
+    ExecuteTurn("A@e1,A+d8");
 
-    EXPECT_EQ(state.fi(LIGHT, POSEIDON),  ParseField("e1"));
-    EXPECT_EQ(state.fi(LIGHT, APHRODITE), ParseField("d8"));
+    EXPECT_EQ(fi(LIGHT, POSEIDON),  ParseField("e1"));
+    EXPECT_EQ(fi(LIGHT, APHRODITE), ParseField("d8"));
 }
 
 // Special rule 2: Aphrodite can use her special power on the turn she is summoned, even if
 // another god already moved:
-TEST(Aphrodite, Special2) {
-    State state = State::Initial();
-    state.Place(LIGHT, POSEIDON, ParseField("d8"));
-    state.Place(LIGHT, ZEUS, ParseField("e1"));
+TEST_F(MovesTest, Aphrodite_Special2) {
+    Place(LIGHT, POSEIDON, "d8");
+    Place(LIGHT, ZEUS, "e1");
 
-    EXPECT_EQ(state.fi(LIGHT, POSEIDON), ParseField("d8"));
+    EXPECT_EQ(fi(LIGHT, POSEIDON), ParseField("d8"));
 
-    ExecuteTurn(state, "Z>e2,A@e1,A+d8");
+    ExecuteTurn("Z>e2,A@e1,A+d8");
 
-    EXPECT_EQ(state.fi(LIGHT, POSEIDON),  ParseField("e1"));
-    EXPECT_EQ(state.fi(LIGHT, APHRODITE), ParseField("d8"));
+    EXPECT_EQ(fi(LIGHT, POSEIDON),  ParseField("e1"));
+    EXPECT_EQ(fi(LIGHT, APHRODITE), ParseField("d8"));
 }
 
 // Special rule 3: extra move after killing an enemy at their gate, does not allow
 // Aphrodite to swap!
-TEST(Aphrodite, Special3) {
-    State state = State::Initial();
-    state.Place(DARK,  ZEUS,      ParseField("e9"));
-    state.Place(LIGHT, ZEUS,      ParseField("e8"));
-    state.Place(LIGHT, APHRODITE, ParseField("e7"));
+TEST_F(MovesTest, Aphrodite_Special3) {
+    Place(DARK,  ZEUS,      "e9");
+    Place(LIGHT, ZEUS,      "e8");
+    Place(LIGHT, APHRODITE, "e7");
 
-    std::vector<std::string> turns = TurnStrings(state);
+    auto turns = TurnStrings();
     EXPECT_THAT(turns, Contains("A+e8"));            // can swap as only move
     EXPECT_THAT(turns, Contains("Z!e9,A>e9"));       // can move after kill
     EXPECT_THAT(turns, Not(Contains("Z!e9,A+e8")));  // cannot swap after kill
 }
 
 // Ares moves up to 3 spaces in any single direction (same as Hades).
-TEST(Ares, Moves) {
+TEST_F(MovesTest, Ares_Moves) {
     TestMovement(LIGHT, ARES,
             "     .     "
             "    ...    "
@@ -1116,7 +1193,7 @@ TEST(Ares, Moves) {
     );
 }
 
-TEST(Ares, Attacks) {
+TEST_F(MovesTest, Ares_Attacks) {
     TestAttack(LIGHT, ARES, {DIONYSUS, APOLLO, POSEIDON},
             "     .     "
             "    ...    "
@@ -1130,8 +1207,8 @@ TEST(Ares, Attacks) {
     );
 }
 
-TEST(Ares, Special) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Ares_Special) {
+    state = BoardTemplate(
             "     .     "
             "    ...    "
             "   .....   "
@@ -1143,27 +1220,26 @@ TEST(Ares, Special) {
             "     .     "
     ).ToState(LIGHT);
 
-    ExecuteTurn(state, "R>e5");
+    ExecuteTurn("R>e5");
 
-    EXPECT_EQ(state.hp(LIGHT, APHRODITE), pantheon[APHRODITE].hit);  // ally
-    EXPECT_EQ(state.hp(DARK,  DIONYSUS),  pantheon[DIONYSUS].hit);  // shielded
-    EXPECT_EQ(state.hp(DARK,  APOLLO),    pantheon[APOLLO].hit - 1);
-    EXPECT_EQ(state.hp(DARK,  POSEIDON),  pantheon[POSEIDON].hit - 1);
-    EXPECT_EQ(state.hp(DARK,  ZEUS),      pantheon[ZEUS].hit);  // out of range
+    EXPECT_EQ(hp(LIGHT, APHRODITE), pantheon[APHRODITE].hit);  // ally
+    EXPECT_EQ(hp(DARK,  DIONYSUS),  pantheon[DIONYSUS].hit);  // shielded
+    EXPECT_EQ(hp(DARK,  APOLLO),    pantheon[APOLLO].hit - 1);
+    EXPECT_EQ(hp(DARK,  POSEIDON),  pantheon[POSEIDON].hit - 1);
+    EXPECT_EQ(hp(DARK,  ZEUS),      pantheon[ZEUS].hit);  // out of range
 }
 
-TEST(Ares, SpecialOnSummon) {
-    State state = State::Initial();
-    state.Place(DARK, ZEUS, ParseField("e2"));
+TEST_F(MovesTest, Ares_SpecialOnSummon) {
+    Place(DARK, ZEUS, "e2");
 
-    ExecuteTurn(state, "R@e1");
+    ExecuteTurn("R@e1");
 
-    EXPECT_EQ(state.hp(DARK, ZEUS), pantheon[ZEUS].hit - 1);
+    EXPECT_EQ(hp(DARK, ZEUS), pantheon[ZEUS].hit - 1);
 }
 
 // When Aphrodite swaps with Ares, he does damage when he lands on the new location.
-TEST(Ares, SpecialAfterAphroditeSwaps) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Ares_SpecialAfterAphroditeSwaps) {
+    state = BoardTemplate(
             "     .     "
             "    ...    "
             "   .....   "
@@ -1175,14 +1251,14 @@ TEST(Ares, SpecialAfterAphroditeSwaps) {
             "     .     "
     ).ToState(LIGHT);
 
-    ExecuteTurn(state, "A+e6");
+    ExecuteTurn("A+e6");
 
-    EXPECT_EQ(state.hp(DARK, APOLLO),   pantheon[APOLLO].hit - 1);
-    EXPECT_EQ(state.hp(DARK, POSEIDON), pantheon[POSEIDON].hit);
+    EXPECT_EQ(hp(DARK, APOLLO),   pantheon[APOLLO].hit - 1);
+    EXPECT_EQ(hp(DARK, POSEIDON), pantheon[POSEIDON].hit);
 }
 
-TEST(Ares, SpecialMoveAfterMove) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Ares_SpecialMoveAfterMove) {
+    state = BoardTemplate(
             "     n     "
             "    ...    "
             "   .....   "
@@ -1194,13 +1270,13 @@ TEST(Ares, SpecialMoveAfterMove) {
             "     .     "
     ).ToState(LIGHT);
 
-    state.SetHpForTest(DARK, ATHENA, 1);
+    SetHp(DARK, ATHENA, 1);
 
-    EXPECT_THAT(TurnStrings(state), Contains("R>e8,R>e9"));
+    EXPECT_THAT(TurnStrings(), Contains("R>e8,R>e9"));
 }
 
-TEST(Ares, SpecialMoveAfterAphroditeSwap) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Ares_SpecialMoveAfterAphroditeSwap) {
+    state = BoardTemplate(
             "     n     "
             "    .A.    "
             "   .....   "
@@ -1212,15 +1288,15 @@ TEST(Ares, SpecialMoveAfterAphroditeSwap) {
             "     R     "
     ).ToState(LIGHT);
 
-    state.SetHpForTest(DARK, ATHENA, 1);
+    SetHp(DARK, ATHENA, 1);
 
-    EXPECT_THAT(TurnStrings(state), Contains("A+e1,R>e9"));
+    EXPECT_THAT(TurnStrings(), Contains("A+e1,R>e9"));
 }
 
 // Debatable: when Poseidon pushes Ares back, this does NOT count as Ares
 // "landing" on a new field, so it does not trigger his damage ability.
-TEST(Ares, SpecialNotAfterPoseidonPush) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Ares_SpecialNotAfterPoseidonPush) {
+    state = BoardTemplate(
             "     .     "
             "    ...    "
             "   .....   "
@@ -1232,16 +1308,16 @@ TEST(Ares, SpecialNotAfterPoseidonPush) {
             "     .     "
     ).ToState(DARK);
 
-    ExecuteTurn(state, "P!e5");
+    ExecuteTurn("P!e5");
 
-    ASSERT_THAT(state.hp(LIGHT, ARES), pantheon[ARES].hit - pantheon[POSEIDON].dmg);
-    ASSERT_THAT(state.fi(LIGHT, ARES), ParseField("e3"));  // knocked back
-    ASSERT_THAT(state.fi(DARK,  ZEUS), ParseField("e2"));  // adjacent
-    ASSERT_THAT(state.hp(DARK,  ZEUS), pantheon[ZEUS].hit);  // undamaged
+    ASSERT_THAT(hp(LIGHT, ARES), pantheon[ARES].hit - pantheon[POSEIDON].dmg);
+    ASSERT_THAT(fi(LIGHT, ARES), ParseField("e3"));  // knocked back
+    ASSERT_THAT(fi(DARK,  ZEUS), ParseField("e2"));  // adjacent
+    ASSERT_THAT(hp(DARK,  ZEUS), pantheon[ZEUS].hit);  // undamaged
 }
 
 // Hermes moves the same as Aphrodite
-TEST(Hermes, Moves) {
+TEST_F(MovesTest, Hermes_Moves) {
     TestMovement(LIGHT, HERMES,
             "     .     "
             "    ...    "
@@ -1279,7 +1355,7 @@ TEST(Hermes, Moves) {
     );
 }
 
-TEST(Hermes, Attacks) {
+TEST_F(MovesTest, Hermes_Attacks) {
     TestAttack(LIGHT, HERMES, {DIONYSUS, APOLLO},
             "     .     "
             "    ...    "
@@ -1293,8 +1369,8 @@ TEST(Hermes, Attacks) {
         , TestAttackOptions::DEDUPLICATE);
 }
 
-TEST(Hermes, AttackAthenaFirst) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Hermes_AttackAthenaFirst) {
+    state = BoardTemplate(
             "     .     "
             "    ...    "
             "   ..e..   "
@@ -1305,9 +1381,9 @@ TEST(Hermes, AttackAthenaFirst) {
             "    ...    "
             "     .     "
         ).ToState(LIGHT);
-    state.SetHpForTest(DARK, ATHENA, pantheon[HERMES].dmg);
+    SetHp(DARK, ATHENA, pantheon[HERMES].dmg);
 
-    std::vector<std::string> turns = TurnStrings(state);
+    auto turns = TurnStrings();
     EXPECT_THAT(turns, Contains("M!e7"));
     EXPECT_THAT(turns, Contains("M!c5"));
     EXPECT_THAT(turns, Contains("M!g5"));
@@ -1319,15 +1395,15 @@ TEST(Hermes, AttackAthenaFirst) {
     EXPECT_THAT(turns, Not(Contains("M!g5,M!e7")));  // deduped
     EXPECT_THAT(turns, Not(Contains("M!c5,M!e7,M!g5")));  // no more than 2 attacks
 
-    ExecuteTurn(state, "M!c5,M!g5");
+    ExecuteTurn("M!c5,M!g5");
 
-    EXPECT_TRUE(state.IsDead(DARK, ATHENA));
-    EXPECT_EQ(state.hp(DARK, HERA), pantheon[HERA].hit);
-    EXPECT_EQ(state.hp(DARK, ZEUS), pantheon[ZEUS].hit - pantheon[HERMES].dmg);
+    EXPECT_TRUE(IsDead(DARK, ATHENA));
+    EXPECT_EQ(hp(DARK, HERA), pantheon[HERA].hit);
+    EXPECT_EQ(hp(DARK, ZEUS), pantheon[ZEUS].hit - pantheon[HERMES].dmg);
 }
 
-TEST(Hermes, Special) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Hermes_Special) {
+    state = BoardTemplate(
             "     z     "
             "    ...    "
             "   .....   "
@@ -1339,13 +1415,13 @@ TEST(Hermes, Special) {
             "     .     "
         ).ToState(LIGHT);
 
-    std::vector<std::string> turns = TurnStrings(state);
+    auto turns = TurnStrings();
     EXPECT_THAT(turns, Contains("R>a5"));
     EXPECT_THAT(turns, Contains("R>i5"));
     EXPECT_THAT(turns, Not(Contains("R!e9")));  // attack range not boosted
 }
 
-TEST(Dionysus, Moves) {
+TEST_F(MovesTest, Dionysus_Moves) {
     TestMovement(LIGHT, DIONYSUS,
             "     .     "
             "    ...    "
@@ -1410,7 +1486,7 @@ TEST(Dionysus, Moves) {
     );
 }
 
-TEST(Dionysus, Attack) {
+TEST_F(MovesTest, Dionysus_Attack) {
     TestAreaAttack(LIGHT, DIONYSUS, {APHRODITE, POSEIDON},
             "     .     "
             "    ...    "
@@ -1435,8 +1511,8 @@ TEST(Dionysus, Attack) {
     );
 }
 
-TEST(Dionysus, Special) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Dionysus_Special) {
+    state = BoardTemplate(
             "     .     "
             "    ...    "
             "   no.Z.   "
@@ -1448,23 +1524,23 @@ TEST(Dionysus, Special) {
             "     .     "
         ).ToState(LIGHT);
 
-    auto turns = TurnStrings(state);
+    auto turns = TurnStrings();
     EXPECT_THAT(turns, Contains("D+d3"));
     EXPECT_THAT(turns, Not(Contains("D>d7")));  // cannot jump on shielded enemy
     EXPECT_THAT(turns, Not(Contains("D+d7")));  // cannot jump on shielded enemy
     EXPECT_THAT(turns, Not(Contains("D>f7")));  // cannot jump on ally
     EXPECT_THAT(turns, Not(Contains("D+f7")));  // cannot jump on ally
-    EXPECT_FALSE(state.IsDead(DARK, APHRODITE));
+    EXPECT_FALSE(IsDead(DARK, APHRODITE));
 
-    ExecuteTurn(state, "D+d3");
+    ExecuteTurn("D+d3");
 
-    EXPECT_EQ(state.PlayerAt(ParseField("d3")), LIGHT);
-    EXPECT_EQ(state.GodAt(ParseField("d3")), DIONYSUS);
-    EXPECT_TRUE(state.IsDead(DARK, APHRODITE));
+    EXPECT_EQ(PlayerAt("d3"), LIGHT);
+    EXPECT_EQ(GodAt("d3"), DIONYSUS);
+    EXPECT_TRUE(IsDead(DARK, APHRODITE));
 }
 
-TEST(Dionysus, SpecialWithSpeedBoost) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Dionysus_SpecialWithSpeedBoost) {
+    state = BoardTemplate(
             "     .     "
             "    ...    "
             "   ..o..   " // 7
@@ -1477,7 +1553,7 @@ TEST(Dionysus, SpecialWithSpeedBoost) {
         //    abcdefghi
         ).ToState(LIGHT);
 
-    auto turns = TurnStrings(state);
+    auto turns = TurnStrings();
     EXPECT_THAT(turns, Contains("D>g4"));   // single move
     EXPECT_THAT(turns, Contains("D>e5"));   // double move
     EXPECT_THAT(turns, Contains("D+f5"));   // single kill
@@ -1491,7 +1567,7 @@ TEST(Dionysus, SpecialWithSpeedBoost) {
 // Not included: Dionysus killing enemy at the gate allowing a double move.
 // (In that case, just stay at the gate to win.)
 
-TEST(Artemis, Moves) {
+TEST_F(MovesTest, Artemis_Moves) {
     TestMovement(LIGHT, ARTEMIS,
             "     .     "
             "    ...    "
@@ -1565,7 +1641,7 @@ TEST(Artemis, Moves) {
     );
 }
 
-TEST(Artemis, Attacks) {
+TEST_F(MovesTest, Artemis_Attacks) {
     TestAttack(LIGHT, ARTEMIS, {APOLLO, APHRODITE, POSEIDON},
             "     .     "
             "    ...    "
@@ -1580,8 +1656,8 @@ TEST(Artemis, Attacks) {
 }
 
 // Withering Moon: deal 1 damage to any enemy and take 1 damage in return.
-TEST(Artemis, Special) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Artemis_Special) {
+    state = BoardTemplate(
             "     .     "
             "    ...    "
             "   ..z..   "
@@ -1593,28 +1669,27 @@ TEST(Artemis, Special) {
             "     .     "
         ).ToState(LIGHT);
 
-    auto turns = TurnStrings(state);
+    auto turns = TurnStrings();
     ASSERT_THAT(turns, Contains("T+e7"));
     ASSERT_THAT(turns, Not(Contains("T+e3")));  // ally
     ASSERT_THAT(turns, Not(Contains("T+h5")));  // protected by Athena
 
-    ExecuteTurn(state, "T+e7");
+    ExecuteTurn("T+e7");
 
-    EXPECT_EQ(state.hp(LIGHT, ARTEMIS), pantheon[ARTEMIS].hit - 1);
-    EXPECT_EQ(state.hp(DARK, ZEUS), pantheon[ZEUS].hit - 1);
+    EXPECT_EQ(hp(LIGHT, ARTEMIS), pantheon[ARTEMIS].hit - 1);
+    EXPECT_EQ(hp(DARK, ZEUS), pantheon[ZEUS].hit - 1);
 }
 
-TEST(Artemis, SpecialAfterSummon) {
-    State state = State::Initial();
-    state.Place(DARK, ATHENA, ParseField("c6"));
+TEST_F(MovesTest, Artemis_SpecialAfterSummon) {
+    Place(DARK, ATHENA, "c6");
 
-    ExecuteTurn(state, "T@e1,T+c6");
+    ExecuteTurn("T@e1,T+c6");
 
-    EXPECT_EQ(state.hp(DARK, ATHENA), pantheon[ATHENA].hit - 1);
+    EXPECT_EQ(hp(DARK, ATHENA), pantheon[ATHENA].hit - 1);
 }
 
-TEST(Artemis, SpecialDamageBoost) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Artemis_SpecialDamageBoost) {
+    state = BoardTemplate(
             "     .     "
             "    ...    "
             "   ..z..   "
@@ -1625,18 +1700,18 @@ TEST(Artemis, SpecialDamageBoost) {
             "    ...    "
             "     .     "
         ).ToState(LIGHT);
-    EXPECT_EQ(state.fx(LIGHT, ARTEMIS), DAMAGE_BOOST);
+    EXPECT_EQ(fx(LIGHT, ARTEMIS), DAMAGE_BOOST);
 
-    ExecuteTurn(state, "T+e7");
+    ExecuteTurn("T+e7");
 
-    EXPECT_EQ(state.hp(LIGHT, ARTEMIS), pantheon[ARTEMIS].hit - 2);
-    EXPECT_EQ(state.hp(DARK, ZEUS), pantheon[ZEUS].hit - 2);
+    EXPECT_EQ(hp(LIGHT, ARTEMIS), pantheon[ARTEMIS].hit - 2);
+    EXPECT_EQ(hp(DARK, ZEUS), pantheon[ZEUS].hit - 2);
 }
 
 // Edge case: when Artemis is at 1 HP herself and damage boosted
 // by Hephaestus, Withering Moon still does 2 damage to the target.
-TEST(Artemis, SpecialDamageBoostAt1HP) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Artemis_SpecialDamageBoostAt1HP) {
+    state = BoardTemplate(
             "     .     "
             "    ...    "
             "   ..z..   "
@@ -1647,18 +1722,18 @@ TEST(Artemis, SpecialDamageBoostAt1HP) {
             "    ...    "
             "     .     "
         ).ToState(LIGHT);
-    state.SetHpForTest(LIGHT, ARTEMIS, 1);
+    SetHp(LIGHT, ARTEMIS, 1);
 
-    ExecuteTurn(state, "T+e7");
+    ExecuteTurn("T+e7");
 
-    EXPECT_EQ(state.hp(DARK, ZEUS), pantheon[ZEUS].hit - 2);
-    EXPECT_TRUE(state.IsDead(LIGHT, ARTEMIS));
+    EXPECT_EQ(hp(DARK, ZEUS), pantheon[ZEUS].hit - 2);
+    EXPECT_TRUE(IsDead(LIGHT, ARTEMIS));
 }
 
 // Killing an enemy at the opponent's gate with Artemis' special triggers
 // an extra move, just like a regular attack would.
-TEST(Artemis, SpecialExtraMove) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Artemis_SpecialExtraMove) {
+    state = BoardTemplate(
             "     n     "
             "    ...    "
             "   .....   "
@@ -1669,13 +1744,13 @@ TEST(Artemis, SpecialExtraMove) {
             "    ...    "
             "     .     "
         ).ToState(LIGHT);
-    state.SetHpForTest(DARK,ATHENA, 1);
+    SetHp(DARK,ATHENA, 1);
 
-    EXPECT_THAT(TurnStrings(state), Contains("T+e9,T>e7"));
+    EXPECT_THAT(TurnStrings(), Contains("T+e9,T>e7"));
 }
 
 // Hades moves up to 3 spaces in any single direction (same as Ares).
-TEST(Hades, Moves) {
+TEST_F(MovesTest, Hades_Moves) {
     TestMovement(LIGHT, HADES,
             "     .     "
             "    ...    "
@@ -1716,8 +1791,8 @@ TEST(Hades, Moves) {
     );
 }
 
-TEST(Hades, Attacks) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Hades_Attacks) {
+    state = BoardTemplate(
             "     .     "
             "    ...    "
             "   .....   "
@@ -1729,24 +1804,24 @@ TEST(Hades, Attacks) {
             "     .     "
     ).ToState(LIGHT);
 
-    ExecuteTurn(state, "S!d5");
+    ExecuteTurn("S!d5");
 
     // Note 4 damage instead of 3 because of Hephaestus damage boost
-    EXPECT_EQ(state.hp(LIGHT, HEPHAESTUS),      9);  // friendly
-    EXPECT_EQ(state.hp(DARK,  HERMES),          5);  // out of range
-    EXPECT_EQ(state.hp(DARK,  POSEIDON),    7 - 4);  // hit
-    EXPECT_EQ(state.hp(DARK,  APOLLO),      6 - 4);  // hit
-    EXPECT_EQ(state.hp(DARK,  ATHENA),          0);  // killed
-    EXPECT_EQ(state.hp(DARK,  ZEUS),       10 - 4);  // hit
-    EXPECT_EQ(state.hp(DARK,  APHRODITE),       6);  // out of range
-    EXPECT_EQ(state.hp(DARK,  DIONYSUS),        4);  // out of range
+    EXPECT_EQ(hp(LIGHT, HEPHAESTUS),      9);  // friendly
+    EXPECT_EQ(hp(DARK,  HERMES),          5);  // out of range
+    EXPECT_EQ(hp(DARK,  POSEIDON),    7 - 4);  // hit
+    EXPECT_EQ(hp(DARK,  APOLLO),      6 - 4);  // hit
+    EXPECT_EQ(hp(DARK,  ATHENA),          0);  // killed
+    EXPECT_EQ(hp(DARK,  ZEUS),       10 - 4);  // hit
+    EXPECT_EQ(hp(DARK,  APHRODITE),       6);  // out of range
+    EXPECT_EQ(hp(DARK,  DIONYSUS),        4);  // out of range
 }
 
 // Chains of Tartarus: bind 1 enemy per turn after landing next to or attacking
 // an enemy so they cannot move or attack as Hades remains adjacent.
-TEST(Hades, Special) {
+TEST_F(MovesTest, Hades_Special) {
     // This test case is essentially the example from the rulebook.
-    State state = BoardTemplate(
+    state = BoardTemplate(
             "     .     "
             "    ...    "
             "   .O...   "
@@ -1758,72 +1833,71 @@ TEST(Hades, Special) {
             "     .     "
     ).ToState(LIGHT);
 
-    std::vector<std::string> turns = TurnStrings(state);
+    auto turns = TurnStrings();
     EXPECT_THAT(turns, Contains("S>d5"));
     EXPECT_THAT(turns, Contains("S>d5,S+c6"));
     EXPECT_THAT(turns, Contains("S>d5,S+d6"));
     EXPECT_THAT(turns, Not(Contains("S>d5,S+e6")));       // empty
     EXPECT_THAT(turns, Not(Contains("S>d5,S+f6")));       // not adjacent
 
-    ExecuteTurn(state, "S>d5,S+c6");  // chain Hera at c6
+    ExecuteTurn("S>d5,S+c6");  // chain Hera at c6
 
-    EXPECT_EQ(state.fx(DARK, HERA), CHAINED);
-    EXPECT_EQ(state.fx(DARK, ZEUS), UNAFFECTED);
-    EXPECT_EQ(state.fx(DARK, HEPHAESTUS), UNAFFECTED);
-    EXPECT_THAT(MoveDestinations(state, HERA), IsEmpty());
-    EXPECT_THAT(MoveDestinations(state, ZEUS), Not(IsEmpty()));
-    EXPECT_THAT(MoveDestinations(state, HEPHAESTUS), Not(IsEmpty()));
-    EXPECT_THAT(AttackTargets(state, HERA), IsEmpty());
-    EXPECT_THAT(AttackTargets(state, ZEUS), Contains(HADES));
+    EXPECT_EQ(fx(DARK, HERA), CHAINED);
+    EXPECT_EQ(fx(DARK, ZEUS), UNAFFECTED);
+    EXPECT_EQ(fx(DARK, HEPHAESTUS), UNAFFECTED);
+    EXPECT_THAT(MoveDestinations(HERA), IsEmpty());
+    EXPECT_THAT(MoveDestinations(ZEUS), Not(IsEmpty()));
+    EXPECT_THAT(MoveDestinations(HEPHAESTUS), Not(IsEmpty()));
+    EXPECT_THAT(AttackTargets(HERA), IsEmpty());
+    EXPECT_THAT(AttackTargets(ZEUS), Contains(HADES));
 
-    state.EndTurn();  // skip dark turn
+    EndTurn();  // skip dark turn
 
-    EXPECT_THAT(TurnStrings(state), Not(Contains("S!d5,S+c6")));  // cannot chain Hera twice
+    EXPECT_THAT(TurnStrings(), Not(Contains("S!d5,S+c6")));  // cannot chain Hera twice
 
-    ExecuteTurn(state, "S!d5,S+d6");  // attack + chain Zeus at d6
+    ExecuteTurn("S!d5,S+d6");  // attack + chain Zeus at d6
 
-    EXPECT_EQ(state.hp(DARK, HERA),        8 - 3);
-    EXPECT_EQ(state.hp(DARK, ZEUS),       10 - 3);
-    EXPECT_EQ(state.hp(DARK, HEPHAESTUS),      9);
-    EXPECT_EQ(state.fx(DARK, HERA), CHAINED);
-    EXPECT_EQ(state.fx(DARK, ZEUS), CHAINED);
-    EXPECT_EQ(state.fx(DARK, HEPHAESTUS), UNAFFECTED);
-    EXPECT_THAT(MoveDestinations(state, HERA), IsEmpty());
-    EXPECT_THAT(MoveDestinations(state, ZEUS), IsEmpty());
-    EXPECT_THAT(MoveDestinations(state, HEPHAESTUS), Not(IsEmpty()));
-    EXPECT_THAT(AttackTargets(state, HERA), IsEmpty());
-    EXPECT_THAT(AttackTargets(state, ZEUS), IsEmpty());
+    EXPECT_EQ(hp(DARK, HERA),        8 - 3);
+    EXPECT_EQ(hp(DARK, ZEUS),       10 - 3);
+    EXPECT_EQ(hp(DARK, HEPHAESTUS),      9);
+    EXPECT_EQ(fx(DARK, HERA), CHAINED);
+    EXPECT_EQ(fx(DARK, ZEUS), CHAINED);
+    EXPECT_EQ(fx(DARK, HEPHAESTUS), UNAFFECTED);
+    EXPECT_THAT(MoveDestinations(HERA), IsEmpty());
+    EXPECT_THAT(MoveDestinations(ZEUS), IsEmpty());
+    EXPECT_THAT(MoveDestinations(HEPHAESTUS), Not(IsEmpty()));
+    EXPECT_THAT(AttackTargets(HERA), IsEmpty());
+    EXPECT_THAT(AttackTargets(ZEUS), IsEmpty());
 
-    state.EndTurn();  // skip dark turn
+    EndTurn();  // skip dark turn
 
-    ExecuteTurn(state, "S>c5");  // move does not change chains
+    ExecuteTurn("S>c5");  // move does not change chains
 
-    EXPECT_EQ(state.fx(DARK, HERA), CHAINED);
-    EXPECT_EQ(state.fx(DARK, ZEUS), CHAINED);
-    EXPECT_EQ(state.fx(DARK, HEPHAESTUS), UNAFFECTED);
+    EXPECT_EQ(fx(DARK, HERA), CHAINED);
+    EXPECT_EQ(fx(DARK, ZEUS), CHAINED);
+    EXPECT_EQ(fx(DARK, HEPHAESTUS), UNAFFECTED);
 
-    state.EndTurn();  // skip dark turn
+    EndTurn();  // skip dark turn
 
-    ExecuteTurn(state, "S>e5,S+f6");  // move + chain Hephaestus at d6
+    ExecuteTurn("S>e5,S+f6");  // move + chain Hephaestus at d6
 
-    EXPECT_EQ(state.fx(DARK, HERA), UNAFFECTED);
-    EXPECT_EQ(state.fx(DARK, ZEUS), CHAINED);
-    EXPECT_EQ(state.fx(DARK, HEPHAESTUS), CHAINED);
-    EXPECT_THAT(MoveDestinations(state, HERA), Not(IsEmpty()));
-    EXPECT_THAT(MoveDestinations(state, ZEUS), IsEmpty());
-    EXPECT_THAT(MoveDestinations(state, HEPHAESTUS), IsEmpty());
-    EXPECT_THAT(AttackTargets(state, ZEUS), IsEmpty());
-    EXPECT_THAT(AttackTargets(state, HEPHAESTUS), IsEmpty());
+    EXPECT_EQ(fx(DARK, HERA), UNAFFECTED);
+    EXPECT_EQ(fx(DARK, ZEUS), CHAINED);
+    EXPECT_EQ(fx(DARK, HEPHAESTUS), CHAINED);
+    EXPECT_THAT(MoveDestinations(HERA), Not(IsEmpty()));
+    EXPECT_THAT(MoveDestinations(ZEUS), IsEmpty());
+    EXPECT_THAT(MoveDestinations(HEPHAESTUS), IsEmpty());
+    EXPECT_THAT(AttackTargets(ZEUS), IsEmpty());
+    EXPECT_THAT(AttackTargets(HEPHAESTUS), IsEmpty());
 }
 
 // Hades can chain an enemy when summoning, then move or attack and chain again,
 // binding two enemies in one turn.
-TEST(Hades, SpecialAfterSummon) {
-    State state = State::Initial();
-    state.Place(DARK, ZEUS,       ParseField("d2"));
-    state.Place(DARK, HEPHAESTUS, ParseField("f2"));
+TEST_F(MovesTest, Hades_SpecialAfterSummon) {
+    Place(DARK, ZEUS,       "d2");
+    Place(DARK, HEPHAESTUS, "f2");
 
-    std::vector<std::string> turns = TurnStrings(state);
+    auto turns = TurnStrings();
     EXPECT_THAT(turns, Contains("S@e1"));
     EXPECT_THAT(turns, Contains("S@e1,S+d2"));
     EXPECT_THAT(turns, Contains("S@e1,S+d2,S>e2"));
@@ -1836,58 +1910,55 @@ TEST(Hades, SpecialAfterSummon) {
     EXPECT_THAT(turns, Contains("S@e1,S!e1,S+f2"));
 }
 
-TEST(Hades, SpecialAfterMoveSummon) {
-    State state = State::Initial();
-    state.Place(DARK,  ZEUS,       ParseField("d2"));
-    state.Place(DARK,  HEPHAESTUS, ParseField("f2"));
-    state.Place(LIGHT, ZEUS,       ParseField("e1"));
+TEST_F(MovesTest, Hades_SpecialAfterMoveSummon) {
+    Place(DARK,  ZEUS,       "d2");
+    Place(DARK,  HEPHAESTUS, "f2");
+    Place(LIGHT, ZEUS,       "e1");
 
-    EXPECT_THAT(TurnStrings(state), Contains("Z>e2,S@e1,S+d2,S!e1,S+f2"));
+    EXPECT_THAT(TurnStrings(), Contains("Z>e2,S@e1,S+d2,S!e1,S+f2"));
 }
 
-TEST(Hades, SpecialBeforeSummon) {
-    State state = State::Initial();
-    state.Place(LIGHT, HADES, ParseField("e1"));
-    state.Place(DARK,  ZEUS,  ParseField("d2"));
+TEST_F(MovesTest, Hades_SpecialBeforeSummon) {
+    Place(LIGHT, HADES, "e1");
+    Place(DARK,  ZEUS,  "d2");
 
-    ExecuteTurn(state, "S>e2,S+d2,O@e1,O!d2");
+    ExecuteTurn("S>e2,S+d2,O@e1,O!d2");
 
-    EXPECT_EQ(state.fx(DARK, ZEUS), CHAINED);
-    EXPECT_EQ(state.hp(DARK, ZEUS), 10 - 3);  // 3 = 2 base + 1 Blazing Arrow bonus damage
+    EXPECT_EQ(fx(DARK, ZEUS), CHAINED);
+    EXPECT_EQ(hp(DARK, ZEUS), 10 - 3);  // 3 = 2 base + 1 Blazing Arrow bonus damage
 }
 
 // Special rule 3: if a player kills an enemy at their gate, then the player
 // may move again; this is another way Hades can bind two enemies in one turn.
-TEST(Hades, SpecialAfterKillingAtEnemyGate) {
+TEST_F(MovesTest, Hades_SpecialAfterKillingAtEnemyGate) {
     //     d e f
     // 9     n
     // 8   z S p
     // 7 . . . . .
-    State state = State::Initial();
-    state.Place(LIGHT, HADES,    ParseField("e8"));
-    state.Place(DARK,  ZEUS,     ParseField("d8"));
-    state.Place(DARK,  POSEIDON, ParseField("f8"));
-    state.Place(DARK,  ATHENA,   ParseField("e9"));
+    Place(LIGHT, HADES,    "e8");
+    Place(DARK,  ZEUS,     "d8");
+    Place(DARK,  POSEIDON, "f8");
+    Place(DARK,  ATHENA,   "e9");
 
-    ExecuteTurn(state, "S!e8,S+d8,S>e7,S+f8");
+    ExecuteTurn("S!e8,S+d8,S>e7,S+f8");
 
-    EXPECT_TRUE(state.IsDead(DARK, ATHENA));
-    EXPECT_EQ(state.fx(DARK, ZEUS),     CHAINED);
-    EXPECT_EQ(state.fx(DARK, POSEIDON), CHAINED);
-    EXPECT_EQ(state.hp(DARK, ZEUS),      10 - 3);
-    EXPECT_EQ(state.hp(DARK, POSEIDON),   7 - 3);
+    EXPECT_TRUE(IsDead(DARK, ATHENA));
+    EXPECT_EQ(fx(DARK, ZEUS),     CHAINED);
+    EXPECT_EQ(fx(DARK, POSEIDON), CHAINED);
+    EXPECT_EQ(hp(DARK, ZEUS),      10 - 3);
+    EXPECT_EQ(hp(DARK, POSEIDON),   7 - 3);
 
-    ExecuteTurn(state, "R@e9,R!e7");
+    ExecuteTurn("R@e9,R!e7");
 
     // If Hades gets killed, chained gods are released.
-    EXPECT_TRUE(state.IsDead(LIGHT, HADES));
-    EXPECT_EQ(state.fx(DARK, ZEUS),     UNAFFECTED);
-    EXPECT_EQ(state.fx(DARK, POSEIDON), UNAFFECTED);
+    EXPECT_TRUE(IsDead(LIGHT, HADES));
+    EXPECT_EQ(fx(DARK, ZEUS),     UNAFFECTED);
+    EXPECT_EQ(fx(DARK, POSEIDON), UNAFFECTED);
 }
 
 // Hades can chain Athena and her shielded allies
-TEST(Hades, SpecialProtectedByAthena) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Hades_SpecialProtectedByAthena) {
+    state = BoardTemplate(
             "     .     "
             "    ...    "
             "   .....   "
@@ -1899,15 +1970,16 @@ TEST(Hades, SpecialProtectedByAthena) {
             "     S     "
     ).ToState(LIGHT);
 
-    EXPECT_EQ(state.fx(DARK, ZEUS), SHIELDED);
-    EXPECT_THAT(TurnStrings(state), Contains("S!e1,S+d2"));
-    EXPECT_THAT(TurnStrings(state), Contains("S>e2,S+e3"));
+    EXPECT_EQ(fx(DARK, ZEUS), SHIELDED);
+    auto turns = TurnStrings();
+    EXPECT_THAT(turns, Contains("S!e1,S+d2"));
+    EXPECT_THAT(turns, Contains("S>e2,S+e3"));
 }
 
 // Aphrodite swapping with Hades allows him to chain another enemy,
 // preserving chains to adjacent enemies (only).
-TEST(Hades, SpecialAfterAphroditeSwaps) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Hades_SpecialAfterAphroditeSwaps) {
+    state = BoardTemplate(
             "     .     "
             "    ...    "
             "   .....   "
@@ -1919,23 +1991,23 @@ TEST(Hades, SpecialAfterAphroditeSwaps) {
             "     .     "
     ).ToState(LIGHT);
 
-    state.Chain(DARK, APOLLO);
-    state.Chain(DARK, POSEIDON);
+    Chain(DARK, APOLLO);
+    Chain(DARK, POSEIDON);
 
-    EXPECT_EQ(state.fx(DARK, ZEUS),     UNAFFECTED);
-    EXPECT_EQ(state.fx(DARK, APOLLO),   CHAINED);
-    EXPECT_EQ(state.fx(DARK, HERA),     UNAFFECTED);
-    EXPECT_EQ(state.fx(DARK, POSEIDON), CHAINED);
+    EXPECT_EQ(fx(DARK, ZEUS),     UNAFFECTED);
+    EXPECT_EQ(fx(DARK, APOLLO),   CHAINED);
+    EXPECT_EQ(fx(DARK, HERA),     UNAFFECTED);
+    EXPECT_EQ(fx(DARK, POSEIDON), CHAINED);
 
-    ExecuteTurn(state, "A+e4,S+e6");
+    ExecuteTurn("A+e4,S+e6");
 
-    EXPECT_EQ(state.fx(DARK, ZEUS),     CHAINED);
-    EXPECT_EQ(state.fx(DARK, APOLLO),   CHAINED);
-    EXPECT_EQ(state.fx(DARK, HERA),     UNAFFECTED);
-    EXPECT_EQ(state.fx(DARK, POSEIDON), UNAFFECTED);
+    EXPECT_EQ(fx(DARK, ZEUS),     CHAINED);
+    EXPECT_EQ(fx(DARK, APOLLO),   CHAINED);
+    EXPECT_EQ(fx(DARK, HERA),     UNAFFECTED);
+    EXPECT_EQ(fx(DARK, POSEIDON), UNAFFECTED);
 }
 
-TEST(Athena, Moves) {
+TEST_F(MovesTest, Athena_Moves) {
     TestMovement(LIGHT, ATHENA,
             "     .     "
             "    ...    "
@@ -1973,7 +2045,7 @@ TEST(Athena, Moves) {
     );
 }
 
-TEST(Athena, Attacks) {
+TEST_F(MovesTest, Athena_Attacks) {
     TestAttack(LIGHT, ATHENA, {APOLLO, POSEIDON},
             "     .     "
             "    .o.    "
@@ -1991,8 +2063,8 @@ TEST(Athena, Attacks) {
 //
 // There are some special tests regarding Athena's aura interacting
 // with area of effect damage under the Poseidon test cases too.
-TEST(Athena, Special) {
-    State state = BoardTemplate(
+TEST_F(MovesTest, Athena_Special) {
+    state = BoardTemplate(
             "     .     "
             "    ...    "
             "   ..zZ.   "
@@ -2004,24 +2076,22 @@ TEST(Athena, Special) {
             "     .     "
     ).ToState(DARK);
 
-    EXPECT_TRUE (state.has_fx(LIGHT, ZEUS,    SHIELDED));
-    EXPECT_TRUE (state.has_fx(LIGHT, ARTEMIS, SHIELDED));
-    EXPECT_FALSE(state.has_fx(LIGHT, ATHENA,  SHIELDED));  // cannot shield self
-    EXPECT_FALSE(state.has_fx(LIGHT, APOLLO,  SHIELDED));  // out of range
+    EXPECT_TRUE (has_fx(LIGHT, ZEUS,    SHIELDED));
+    EXPECT_TRUE (has_fx(LIGHT, ARTEMIS, SHIELDED));
+    EXPECT_FALSE(has_fx(LIGHT, ATHENA,  SHIELDED));  // cannot shield self
+    EXPECT_FALSE(has_fx(LIGHT, APOLLO,  SHIELDED));  // out of range
 
-    ExecuteTurn(state, "Z!e6");
+    ExecuteTurn("Z!e6");
 
-    EXPECT_EQ(state.hp(LIGHT, ZEUS), 10);  // no damage taken
+    EXPECT_EQ(hp(LIGHT, ZEUS), 10);  // no damage taken
 }
 
-TEST(Moves, SixActions) {
-    State state = State::Initial();
-    state.Place(LIGHT, HADES, ParseField("e1"));
-    state.Place(DARK, ZEUS, ParseField("d2"));
-    state.Place(DARK, HERA, ParseField("f2"));
-    state.Place(DARK, ATHENA, ParseField("e9"));
-    state.SetHpForTest(DARK, ATHENA, 1);
+TEST_F(MovesTest, Moves_SixActions) {
+    Place(LIGHT, HADES, "e1");
+    Place(DARK, ZEUS, "d2");
+    Place(DARK, HERA, "f2");
+    Place(DARK, ATHENA, "e9");
+    SetHp(DARK, ATHENA, 1);
 
-    EXPECT_THAT(TurnStrings(state), Contains("S>e2,S+d2,T@e1,T+e9,S>e3,S+f2"))
-        << state.Encode();
+    EXPECT_THAT(TurnStrings(), Contains("S>e2,S+d2,T@e1,T+e9,S>e3,S+f2"));
 }
