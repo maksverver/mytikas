@@ -1,1 +1,8 @@
-add_library(mytikas moves.cc random.cc state.cc)
+add_library(mytikas
+    cli.cc
+    cli_player.cc
+    moves.cc
+    random.cc
+    random_player.cc
+    state.cc
+)

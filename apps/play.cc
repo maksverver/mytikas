@@ -1,191 +1,13 @@
+#include "cli.h"
 #include "state.h"
 #include "moves.h"
-#include "random.h"
+#include "players.h"
 
 #include <cassert>
-#include <cctype>
-#include <iomanip>
 #include <optional>
-#include <random>
-#include <sstream>
 #include <string_view>
 
 namespace {
-
-constexpr bool debug_encoding = true;
-
-constexpr int wrap_columns = 80;
-
-void PrintTurns(const std::vector<Turn> &turns) {
-    if (debug_encoding) {
-        for (Turn turn : turns) {
-            std::string encoded = turn.ToString();
-            std::optional<Turn> decoded = Turn::FromString(encoded);
-            if (decoded != turn) {
-                std::cerr << "encoded: " << encoded << "\ndecoded: ";
-                if (decoded) {
-                    std::cerr << decoded->ToString();
-                } else {
-                    std::cerr << "FAILED";
-                }
-                assert(decoded == turn); // will fail
-            }
-        }
-    }
-
-    std::vector<std::string> strings;
-    int max_len = 0;
-    for (size_t i = 0; i < turns.size(); ++i) {
-        std::ostringstream oss;
-        oss << std::setw(4) << i + 1 << ". " << turns[i];
-        strings.push_back(oss.str());
-        max_len = std::max(max_len, (int) strings.back().size());
-    }
-    const size_t space = 2;
-    const size_t columns = std::max(size_t{1}, size_t{wrap_columns} / (max_len + space));
-    const size_t rows = (strings.size() + (columns - 1)) / columns;
-    for (size_t r = 0; r < rows; ++r) {
-        for (size_t c = 0; c < columns; ++c) {
-            size_t i = rows*c + r;
-            if (i >= strings.size()) break;
-            if (c > 0) std::cout << std::setw(space) << ' ';
-            std::cout << std::left << std::setw(max_len) << strings[i];
-        }
-        std::cout << '\n';
-    }
-}
-
-void PrintDiff(const State &prev, const State &next) {
-    for (int p = 0; p < 2; ++p) {
-        for (int g = 0; g < 8; ++g) {
-            Player pl = AsPlayer(p);
-            God gd = AsGod(g);
-            field_t src = prev.fi(pl, gd);
-            field_t dst = next.fi(pl, gd);
-            if (src != dst) {
-                if (src == -1) {
-                    std::cout << PlayerName(p) << ' ' << GodName(g) << " was summoned at " << FieldName(dst) << ".\n";
-                } else if (dst == -1) {
-                    std::cout << PlayerName(p) << ' ' << GodName(g) << " died at " << FieldName(src) << ".\n";
-                } else {
-                    std::cout << PlayerName(p) << ' ' << GodName(g) << " moved from " << FieldName(src) << " to " << FieldName(dst) << ".\n";
-                }
-            }
-            int hp_lost = prev.hp(pl, gd) - next.hp(pl, gd);
-            if (hp_lost != 0) {
-                std::cout << p << g << " took " << hp_lost << "damage\n";
-            }
-            if (!prev.IsDead(pl, gd) && next.IsDead(pl, gd)) {
-                std::cout << p << g << " died.\n";
-            }
-            int old_fx = prev.fx(pl, gd);
-            int new_fx = next.fx(pl, gd);
-            for (int i = 0; i < 4; ++i) {
-                const char *effect_names[4] = {"chain", "damage boost", "speed boost", "invincibility"};
-                bool before = old_fx & (1 << i);
-                bool after  = new_fx & (1 << i);
-                if (before != after) {
-                    std::cout << PlayerName(p) << ' ' << GodName(g) << ' ' << (after ? "gained" : "lost") << ' ' << effect_names[i] << ".\n";
-                }
-            }
-        }
-    }
-}
-
-void PrintState(const State &state) {
-    static const char *dir_chars[8] = {" ", "+", "×", "🞶", "L", "?", "?", "?"};
-
-    std::cout <<
-        "    God          Mov Atk Dmg Light side        Dark side\n"
-        "--  ------------ --- --- --- ----------------  ----------------\n";
-    for (int i = 0; i < GOD_COUNT; ++i) {
-        const GodInfo &info = pantheon[i];
-
-        std::cout
-            << std::setw( 2) << std::right << i + 1 << "  "
-            << std::setw(12) << std::left << info.name;
-
-        std::cout
-            << ' '
-            << int{info.mov}
-            << dir_chars[info.mov_dirs & 7]
-            << ((info.mov_dirs & Dirs::DIRECT) ? "/" : " ")
-            << ' '
-            << int{info.rng}
-            << dir_chars[info.atk_dirs & 7]
-            << ((info.atk_dirs & Dirs::DIRECT) ? "/" : " ")
-            << ' '
-            << std::setw(2) << std::right << int{info.dmg};
-
-        for (int p = 0; p < 2; ++p) {
-            std::cout << "  " << static_cast<char>((p == 0 ? toupper : tolower)(info.ascii_id)) << " ";
-            int      hp = state.hp(AsPlayer(p), AsGod(i));
-            field_t  fi = state.fi(AsPlayer(p), AsGod(i));
-            StatusFx fx = state.fx(AsPlayer(p), AsGod(i));
-            if (hp == 0) {
-                std::cout << "--------------";
-                assert(fi == -1 && fx == UNAFFECTED);
-            } else {
-                std::cout
-                    << std::setw(2) << std::right << hp << " HP "
-                    << std::setw(2) << FieldName(fi) << ' '
-                    << static_cast<char>((fx & SHIELDED)     ? (p ? tolower : toupper)('N') : ' ')
-                    << static_cast<char>((fx & SPEED_BOOST)  ? (p ? tolower : toupper)('M') : ' ')
-                    << static_cast<char>((fx & DAMAGE_BOOST) ? (p ? tolower : toupper)('H') : ' ')
-                    << static_cast<char>((fx & CHAINED)      ? (p ? toupper : tolower)('S') : ' ')
-                    << ' ';
-            }
-        }
-        std::cout << ' ' << info.emoji_utf8 << '\n';
-    }
-    std::string encoded = state.Encode();
-    std::cout << encoded << '\n';
-    if (debug_encoding) {
-        std::optional<State> decoded = State::Decode(encoded);
-        if (decoded != state) {
-            std::cerr << "encoded: " << encoded << "\ndecoded: ";
-            if (decoded) {
-                std::cerr << decoded->Encode();
-            } else {
-                std::cerr << "FAILED";
-            }
-            std::cerr << std::endl;
-            abort();
-        }
-    }
-    std::cout << "\n   ";
-    for (int c = 0; c < BOARD_SIZE; ++c) {
-        std::cout << ' ' << static_cast<char>('a' + c) << ' ';
-    }
-    std::cout << "\n\n";
-    for (int r = BOARD_SIZE - 1; r >= 0; --r) {
-        std::cout << ' ' << static_cast<char>('1' + r) << ' ';
-        for (int c = 0; c < BOARD_SIZE; ++c) {
-            int i = FieldIndex(r, c);
-            if (i == -1) {
-                std::cout <<  "   ";
-            } else if (state.IsEmpty(i)) {
-                std::cout <<  " . ";
-            } else {
-                std::cout
-                    << ' '
-                    << static_cast<char>(state.PlayerAt(i) == 0 ?
-                            toupper(pantheon[state.GodAt(i)].ascii_id) :
-                            tolower(pantheon[state.GodAt(i)].ascii_id))
-                    << ' ';
-            }
-        }
-        std::cout << ' ' << static_cast<char>('1' + r) << '\n';
-    }
-    std::cout << "\n    ";
-    for (int c = 0; c < BOARD_SIZE; ++c) {
-        std::cout << ' ' << static_cast<char>('a' + c) << ' ';
-    }
-    std::cout
-        << "\n\n"
-        <<  (state.NextPlayer() == LIGHT ? "Light" : "Dark")
-        << " to move\n";
-}
 
 void PrintUsage() {
     std::cout <<
@@ -204,8 +26,6 @@ std::optional<PlayerType> ParsePlayerType(std::string_view sv) {
     return {};
 }
 
-std::mt19937_64 rng = InitializeRng();
-
 }  // namespace
 
 int main(int argc, char *argv[]) {
@@ -214,25 +34,37 @@ int main(int argc, char *argv[]) {
         PrintUsage();
         return 1;
     }
-    PlayerType player_type[2];
+    GamePlayer *game_players[2] = {};
     State state;
     {
         int argi = 1;
         for (int p = 0; p < 2; ++p) {
-            if (auto pt = ParsePlayerType(argv[argi])) {
-                player_type[p] = *pt;
-                ++argi;
-            } else {
+            if (auto pt = ParsePlayerType(argv[argi]); !pt) {
                 std::cerr << "Failed to parse player type: " << argv[argi] << '\n';
                 return 1;
+            } else {
+                switch (*pt) {
+                case PLAY_USER:
+                    game_players[p] = CreateCliPlayer();
+                    break;
+
+                case PLAY_RAND:
+                    game_players[p] = CreateRandomPlayer();
+                    break;
+
+                default:
+                    std::cerr << "Unsupported player type!\n";
+                    return 1;
+                }
             }
+            ++argi;
         }
         if (argi < argc) {
-            if (auto s = State::Decode(argv[argi]); s) {
-                state = *s;
-            } else {
+            if (auto s = State::Decode(argv[argi]); !s) {
                 std::cerr << "Failed to decode state: " << argv[argi] << '\n';
                 return 1;
+            } else {
+                state = *s;
             }
             ++argi;
         } else {
@@ -246,52 +78,7 @@ int main(int argc, char *argv[]) {
         PrintState(state);
         std::cout << '\n';
 
-        std::vector<Turn> turns = GenerateTurns(state);
-        // Note this sorts by internal structure, not string presentation.
-        // This keeps Zeus as the first God, moves before attacks, etc.
-        std::ranges::sort(turns);
-        PrintTurns(turns);
-        std::cout << '\n';
-
-        assert(!turns.empty());
-
-        auto random_turn = [&]() -> const Turn& {
-            std::uniform_int_distribution<> dist(0, turns.size() - 1);
-            size_t i = dist(rng);
-            std::cout << "Randomly selected: " << (i + 1) << ". " << turns[i] << "\n\n";
-            return turns[i];
-        };
-
-        std::optional<Turn> turn;
-        if (player_type[state.NextPlayer()] == PLAY_RAND) {
-            turn = random_turn();
-        } else {
-            std::string line;
-            while (!turn) {
-                std::cout << "Move: " << std::flush;
-                if (!std::getline(std::cin, line)) {
-                    std::cerr << "End of input!\n";
-                    break;
-                }
-                if (line == "?") {
-                    turn = random_turn();
-                    break;
-                }
-                for (size_t i = 0; i < turns.size(); ++i) {
-                    std::ostringstream is;
-                    is << i + 1;
-                    std::ostringstream ts;
-                    ts << turns[i];
-                    if (is.str() == line || ts.str() == line) {
-                        turn = turns[i];
-                        break;
-                    }
-                }
-                if (!turn) {
-                    std::cerr << "Move not recognized!\n";
-                }
-            }
-        }
+        std::optional<Turn> turn = game_players[state.NextPlayer()]->SelectTurn(state);
         if (!turn) {
             std::cerr << "No move selected! Quitting.\n";
             break;
