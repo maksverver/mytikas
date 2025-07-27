@@ -67,10 +67,10 @@ void PrintDiff(const State &prev, const State &next) {
             }
             int hp_lost = prev.hp(pl, gd) - next.hp(pl, gd);
             if (hp_lost != 0) {
-                std::cout << p << g << " took " << hp_lost << "damage\n";
+                std::cout << PlayerName(p) << ' ' << GodName(g) << " took " << hp_lost << " damage\n";
             }
             if (!prev.IsDead(pl, gd) && next.IsDead(pl, gd)) {
-                std::cout << p << g << " died.\n";
+                std::cout << PlayerName(p) << ' ' << GodName(g) << " died.\n";
             }
             int old_fx = prev.fx(pl, gd);
             int new_fx = next.fx(pl, gd);
@@ -171,7 +171,7 @@ void PrintState(const State &state) {
         }
         std::cout << ' ' << static_cast<char>('1' + r) << '\n';
     }
-    std::cout << "\n    ";
+    std::cout << "\n   ";
     for (int c = 0; c < BOARD_SIZE; ++c) {
         std::cout << ' ' << static_cast<char>('a' + c) << ' ';
     }
