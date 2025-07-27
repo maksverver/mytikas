@@ -429,9 +429,13 @@ void GenerateAttacksOne(TurnBuilder &builder, field_t field) {
     // Try to keep the two in sync.
     if (pantheon[god].atk_dirs & Dirs::DIRECT) {
         // Direct attacks only: scan each direction until we reach the end of
-        // the board or an occupied field.
-        field_t field_data[8];
+        // the board or an occupied field. (Note that we need more than the
+        // obvious 8 fields [one per direction] here, because Zeus' attacks can
+        // pass over enemies. GCC seems to think [incorrectly] that we need at
+        // least 16 elements, though I think the real limit is GOD_COUNT.)
+        field_t field_data[16];
         size_t field_size = 0;
+        static_assert(GOD_COUNT <= std::size(field_data));
         assert(std::size(field_data) >= std::size(dirs));
 
         Coords coords = FieldCoords(field);
@@ -444,6 +448,7 @@ void GenerateAttacksOne(TurnBuilder &builder, field_t field) {
                 if (i == -1) break;
                 int pl = state.PlayerAt(i);
                 if (pl == opponent) {
+                    assert(field_size < std::size(field_data));
                     field_data[field_size++] = i;
                 }
                 if (god == ZEUS) {
