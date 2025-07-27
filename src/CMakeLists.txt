@@ -1,6 +1,7 @@
 add_library(mytikas
     cli.cc
     cli_player.cc
+    minimax_player.cc
     moves.cc
     random.cc
     random_player.cc

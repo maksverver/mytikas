@@ -4,6 +4,7 @@
 #include "players.h"
 
 #include <cassert>
+#include <memory>
 #include <optional>
 #include <string_view>
 
@@ -12,17 +13,19 @@ namespace {
 void PrintUsage() {
     std::cout <<
         "Usage: play <light> <dark> [<state>]\n"
-        "Where light/dark is either 'user' or 'rand'\n";
+        "Where light/dark is one of 'user', 'rand', 'minimax'\n";
 }
 
 enum PlayerType {
     PLAY_RAND,
-    PLAY_USER
+    PLAY_USER,
+    PLAY_MINIMAX
 };
 
 std::optional<PlayerType> ParsePlayerType(std::string_view sv) {
-    if (sv == "r" || sv == "rand") return PLAY_RAND;
-    if (sv == "u" || sv == "user") return PLAY_USER;
+    if (sv == "rand") return PLAY_RAND;
+    if (sv == "user") return PLAY_USER;
+    if (sv == "minimax") return PLAY_MINIMAX;
     return {};
 }
 
@@ -34,7 +37,7 @@ int main(int argc, char *argv[]) {
         PrintUsage();
         return 1;
     }
-    GamePlayer *game_players[2] = {};
+    std::unique_ptr<GamePlayer> game_players[2] = {};
     State state;
     {
         int argi = 1;
@@ -45,11 +48,15 @@ int main(int argc, char *argv[]) {
             } else {
                 switch (*pt) {
                 case PLAY_USER:
-                    game_players[p] = CreateCliPlayer();
+                    game_players[p].reset(CreateCliPlayer());
                     break;
 
                 case PLAY_RAND:
-                    game_players[p] = CreateRandomPlayer();
+                    game_players[p].reset(CreateRandomPlayer());
+                    break;
+
+                case PLAY_MINIMAX:
+                    game_players[p].reset(CreateMinimaxPlayer());
                     break;
 
                 default:
