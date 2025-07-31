@@ -58,10 +58,9 @@ void PrintDiff(const State &prev, const State &next) {
             field_t dst = next.fi(pl, gd);
             if (src != dst) {
                 if (src == -1) {
-                    std::cout << PlayerName(p) << ' ' << GodName(g) << " was summoned at " << FieldName(dst) << ".\n";
-                } else if (dst == -1) {
-                    std::cout << PlayerName(p) << ' ' << GodName(g) << " died at " << FieldName(src) << ".\n";
-                } else {
+                    std::cout << PlayerName(p) << ' ' << GodName(g) << " was summoned.\n";
+                    src = gate_index[src];
+                } else if (dst != -1) {
                     std::cout << PlayerName(p) << ' ' << GodName(g) << " moved from " << FieldName(src) << " to " << FieldName(dst) << ".\n";
                 }
             }
@@ -69,17 +68,18 @@ void PrintDiff(const State &prev, const State &next) {
             if (hp_lost != 0) {
                 std::cout << PlayerName(p) << ' ' << GodName(g) << " took " << hp_lost << " damage\n";
             }
-            if (!prev.IsDead(pl, gd) && next.IsDead(pl, gd)) {
+            if (src != -1 && dst == -1) {
                 std::cout << PlayerName(p) << ' ' << GodName(g) << " died.\n";
-            }
-            int old_fx = prev.fx(pl, gd);
-            int new_fx = next.fx(pl, gd);
-            for (int i = 0; i < 4; ++i) {
-                const char *effect_names[4] = {"chain", "damage boost", "speed boost", "invincibility"};
-                bool before = old_fx & (1 << i);
-                bool after  = new_fx & (1 << i);
-                if (before != after) {
-                    std::cout << PlayerName(p) << ' ' << GodName(g) << ' ' << (after ? "gained" : "lost") << ' ' << effect_names[i] << ".\n";
+            } else {
+                int old_fx = prev.fx(pl, gd);
+                int new_fx = next.fx(pl, gd);
+                for (int i = 0; i < 4; ++i) {
+                    const char *effect_names[4] = {"chain", "damage boost", "speed boost", "invincibility"};
+                    bool before = old_fx & (1 << i);
+                    bool after  = new_fx & (1 << i);
+                    if (before != after) {
+                        std::cout << PlayerName(p) << ' ' << GodName(g) << ' ' << (after ? "gained" : "lost") << ' ' << effect_names[i] << ".\n";
+                    }
                 }
             }
         }
