@@ -51,7 +51,7 @@ void PrintTurns(const std::vector<Turn> &turns) {
 
 void PrintDiff(const State &prev, const State &next) {
     for (int p = 0; p < 2; ++p) {
-        for (int g = 0; g < 8; ++g) {
+        for (int g = 0; g < GOD_COUNT; ++g) {
             Player pl = AsPlayer(p);
             God gd = AsGod(g);
             field_t src = prev.fi(pl, gd);
