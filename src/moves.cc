@@ -262,8 +262,6 @@ void GenerateMovesOne(TurnBuilder &builder, field_t field, bool may_summon_after
 
         // Special case: Dionysus can jump on enemies to eliminate them.
         // This covers all cases where there is at least 1 elimination.
-        // Note that these do not need to be deduplicated because they are
-        // intrinsically distinct.
         if (god == DIONYSUS) {
             assert(max_dist == 1 || max_dist == 2);
             auto accessible = [&](field_t field) {
@@ -295,6 +293,14 @@ void GenerateMovesOne(TurnBuilder &builder, field_t field, bool may_summon_after
                         int8_t c2 = c1 + dc;
                         field_t field2 = FieldIndex(r2, c2);
                         if (!accessible(field2)) continue;
+
+                        if (!special1) {
+                            // Deduplicate only if we didn't hit anything on the
+                            // first move, because turns will be equivalent:
+                            if (seen[field2]) continue;
+                            seen[field2] = true;
+                        }
+
                         bool special2 = state.IsOccupied(field2);
                         auto scoped_action2 = builder.MakeScoped(Action{
                             .type  = special2 ? Action::SPECIAL : Action::MOVE,

@@ -1603,6 +1603,24 @@ TEST_F(MovesTest, Dionysus_SpecialWithSpeedBoost) {
     EXPECT_THAT(turns, Contains("D+d5,D+e7"));      // double kill!
 }
 
+TEST_F(MovesTest, Dionysus_SpecialWithSpeedBoost_DeduplicateEqualTurns) {
+    state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   ..o..   "
+            "  .......  "
+            " ....DM... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+        ).ToState(LIGHT);
+
+    auto turns = TurnStrings();
+    EXPECT_THAT(turns, Contains("D>e3").Times(1));
+    EXPECT_THAT(turns, Contains("D+e7").Times(1));
+}
+
 // Not included: Dionysus killing enemy at the gate allowing a double move.
 // (In that case, just stay at the gate to win.)
 
