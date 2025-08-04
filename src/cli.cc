@@ -59,8 +59,9 @@ void PrintDiff(const State &prev, const State &next) {
             if (src != dst) {
                 if (src == -1) {
                     std::cout << PlayerName(p) << ' ' << GodName(g) << " was summoned.\n";
-                    src = gate_index[src];
-                } else if (dst != -1) {
+                    src = gate_index[p];
+                }
+                if (dst != -1) {
                     std::cout << PlayerName(p) << ' ' << GodName(g) << " moved from " << FieldName(src) << " to " << FieldName(dst) << ".\n";
                 }
             }
