@@ -14,5 +14,6 @@ public:
 GamePlayer *CreateCliPlayer();
 GamePlayer *CreateRandomPlayer();
 GamePlayer *CreateMinimaxPlayer();
+GamePlayer *CreateMctsPlayer();
 
 #endif  // ndef PLAYERS_H_INCLUDED

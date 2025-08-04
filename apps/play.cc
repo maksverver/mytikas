@@ -19,13 +19,15 @@ void PrintUsage() {
 enum PlayerType {
     PLAY_RAND,
     PLAY_USER,
-    PLAY_MINIMAX
+    PLAY_MINIMAX,
+    PLAY_MCTS
 };
 
 std::optional<PlayerType> ParsePlayerType(std::string_view sv) {
     if (sv == "rand") return PLAY_RAND;
     if (sv == "user") return PLAY_USER;
     if (sv == "minimax") return PLAY_MINIMAX;
+    if (sv == "mcts") return PLAY_MCTS;
     return {};
 }
 
@@ -57,6 +59,10 @@ int main(int argc, char *argv[]) {
 
                 case PLAY_MINIMAX:
                     game_players[p].reset(CreateMinimaxPlayer());
+                    break;
+
+                case PLAY_MCTS:
+                    game_players[p].reset(CreateMctsPlayer());
                     break;
 
                 default:

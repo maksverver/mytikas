@@ -134,6 +134,23 @@ inline Coords FieldCoords(field_t i) {
     return Coords{.r=r, .c=c};
 }
 
+// Consider the field covered by a checkboard pattern, with both the gateways
+// being on black fields. This returns 1 if the field is on a black field, or
+// 0 if it's on a white field, or -1 if neither.
+inline int FieldParity(int r, int c) {
+    static_assert(BOARD_SIZE % 2 == 1);
+    return OnBoard(r, c) ? ((r + c) & 1) : -1;
+}
+
+// Same as above, but with a field index (which may be out of range) instead of
+// coordinates.
+inline int FieldParity(int field) {
+    static_assert(BOARD_SIZE % 2 == 1);
+    if (field < 0 || field >= FIELD_COUNT) return -1;
+    auto [r, c] = FieldCoords(field);
+    return (r + c) & 1;
+}
+
 struct Dir {
     int8_t dr;
     int8_t dc;
@@ -263,12 +280,24 @@ public:
     bool IsDeployed(Player player, God god) const { return gods[player][god].fi != -1; }
     bool IsSummonable(Player player, God god) const { return !IsDead(player, god) && !IsDeployed(player, god); }
 
+    // Returns a bitmask of gods for the given player that are not dead yet.
+    unsigned PlayerGods(Player player) const;
+
     int Winner() const {
         if (PlayerAt(gate_index[1]) == 0) return 0;
         if (PlayerAt(gate_index[0]) == 1) return 1;
         return -1;
     }
+
     bool IsOver() const { return Winner() != -1; }
+
+    // Returns true if the game is over, or only one player has pieces left.
+    bool IsAlmostOver() const;
+
+    // Returns the winner of the game if the game is over, or else if only one
+    // player has pieces left, returns that player if the pieces can reach the
+    // enemy's gate.
+    int AlmostWinner() const;
 
     void Summon(God god) {
         Place(player, god, gate_index[player]);

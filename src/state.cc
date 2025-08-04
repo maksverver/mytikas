@@ -364,6 +364,47 @@ void State::DecHpForTest(Player player, God god, int dmg) {
     SetHpForTest(player, god, hp(player, god) - dmg);
 }
 
+unsigned State::PlayerGods(Player player) const {
+    unsigned res = 0, bit = 1;
+    for (int god = 0; god < GOD_COUNT; ++god) {
+        if (!IsDead(player, AsGod(god))) res |= bit;
+        bit += bit;
+    }
+    return res;
+}
+
+bool State::IsAlmostOver() const {
+    return IsOver() || PlayerGods(LIGHT) == 0 || PlayerGods(DARK) == 0;
+}
+
+int State::AlmostWinner() const {
+    if (int w = Winner(); w != -1) return w;
+
+    auto p1 = PlayerGods(LIGHT);
+    auto p2 = PlayerGods(DARK);
+    if (p1 != 0 && p2 != 0) return false;
+
+    // When only one player has pieces left, the player with pieces left can win,
+    // unless they only have Hera left and she's on a field from which she
+    // cannot move to the enemy's gate (this can happen if Aphrodite previously
+    // swapped with her).
+    if (p1 != 0 && p2 == 0) {
+        if (p1 == (1 << HERA) &&
+                FieldParity(fi(LIGHT, HERA)) != FieldParity(gate_index[DARK])) {
+            return -1;
+        }
+        return LIGHT;
+    }
+    if (p1 == 0 && p2 != 0) {
+        if ( p2 == (1 << HERA) &&
+                FieldParity(fi(DARK, HERA)) != FieldParity(gate_index[LIGHT])) {
+            return -1;
+        }
+        return DARK;
+    }
+    return -1;
+}
+
 std::ostream &operator<<(std::ostream &os, const State::DebugPrint &dbg) {
     const State &s = dbg.state;
     for (int p = 0; p < 2; ++p) {

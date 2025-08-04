@@ -1,3 +1,6 @@
+// Implements an AI player based on Minimax search with alpha/beta-pruning
+// and move ordering heuristic.
+
 #include "moves.h"
 #include "players.h"
 #include "random.h"
@@ -80,7 +83,7 @@ int Search(const State &state, int depth_left, int alpha, int beta) {
     return best_value;
 }
 
-int Search(const State &state, int search_depth, std::vector<Turn> &best_turns) {
+int FindBestTurns(const State &state, int search_depth, std::vector<Turn> &best_turns) {
     assert(search_depth > 0 && !state.IsOver());
     best_turns.clear();
 
@@ -112,25 +115,27 @@ public:
     std::optional<Turn> SelectTurn(const State &state) override;
 
 private:
-    std::mt19937_64 rng;
+    rng_t rng;
 };
 
 std::optional<Turn> MinimaxPlayer::SelectTurn(const State &state) {
     std::vector<Turn> turns;
-    int value = Search(state, max_search_depth, turns);
+    int value = FindBestTurns(state, max_search_depth, turns);
     assert(!turns.empty());
     int start_value = Evaluate(state);
     std::cerr << "Minimax value: " << value << " (" << (value > start_value ? "+" : "") << (value - start_value) << ")\n";
     std::cerr << "Optimal turns:";
     for (const Turn &turn : turns) std::cerr << ' ' << turn;
     std::cerr << '\n';
-    size_t i = 0;
-    if (turns.size() > 1) {
-        std::uniform_int_distribution<size_t> dist(0, turns.size() - 1);
-        i = dist(rng);
-        std::cerr << "Randomly selected: " << turns[i] << '\n';
+    Turn turn;
+    if (turns.size() == 1) {
+        // Only one choice.
+        turn = turns[0];
+    } else {
+        turn = Choose(rng, turns);
+        std::cerr << "Randomly selected: " << turn << '\n';
     }
-    return turns[i];
+    return turn;
 }
 
 GamePlayer *CreateMinimaxPlayer() {

@@ -11,16 +11,15 @@ public:
     RandomPlayer() : rng(InitializeRng()) {}
     std::optional<Turn> SelectTurn(const State &state) override;
 private:
-    std::mt19937_64 rng;
+    rng_t rng;
 };
 
 std::optional<Turn> RandomPlayer::SelectTurn(const State &state) {
     std::vector<Turn> turns = GenerateTurns(state);
     assert(!turns.empty());
-    std::uniform_int_distribution<> dist(0, turns.size() - 1);
-    size_t i = dist(rng);
-    std::cerr << "Randomly selected: " << (i + 1) << ". " << turns[i] << "\n\n";
-    return std::move(turns[i]);
+    Turn turn = Choose(rng, turns);
+    std::cerr << "Randomly selected: " << turn << "\n\n";
+    return turn;
 };
 
 GamePlayer *CreateRandomPlayer() {
