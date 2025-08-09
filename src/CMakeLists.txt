@@ -4,6 +4,7 @@ add_library(mytikas
     mcts_player.cc
     minimax_player.cc
     moves.cc
+    players.cc
     random.cc
     random_player.cc
     state.cc

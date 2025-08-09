@@ -47,6 +47,6 @@ std::optional<Turn> CliPlayer::SelectTurn(const State &state) {
     return res;
 };
 
-GamePlayer *CreateCliPlayer() {
+GamePlayer *CreateCliPlayer(const CliPlayerOpts &) {
     return new CliPlayer();
 }

@@ -13,22 +13,7 @@ namespace {
 void PrintUsage() {
     std::cout <<
         "Usage: play <light> <dark> [<state>]\n"
-        "Where light/dark is one of 'user', 'rand', 'minimax'\n";
-}
-
-enum PlayerType {
-    PLAY_RAND,
-    PLAY_USER,
-    PLAY_MINIMAX,
-    PLAY_MCTS
-};
-
-std::optional<PlayerType> ParsePlayerType(std::string_view sv) {
-    if (sv == "rand") return PLAY_RAND;
-    if (sv == "user") return PLAY_USER;
-    if (sv == "minimax") return PLAY_MINIMAX;
-    if (sv == "mcts") return PLAY_MCTS;
-    return {};
+        "Where light/dark is one of 'cli', 'rand', 'minimax', or 'mcts'\n";
 }
 
 }  // namespace
@@ -44,31 +29,11 @@ int main(int argc, char *argv[]) {
     {
         int argi = 1;
         for (int p = 0; p < 2; ++p) {
-            if (auto pt = ParsePlayerType(argv[argi]); !pt) {
+            if (auto pt = ParsePlayerDesc(argv[argi]); !pt) {
                 std::cerr << "Failed to parse player type: " << argv[argi] << '\n';
                 return 1;
             } else {
-                switch (*pt) {
-                case PLAY_USER:
-                    game_players[p].reset(CreateCliPlayer());
-                    break;
-
-                case PLAY_RAND:
-                    game_players[p].reset(CreateRandomPlayer());
-                    break;
-
-                case PLAY_MINIMAX:
-                    game_players[p].reset(CreateMinimaxPlayer());
-                    break;
-
-                case PLAY_MCTS:
-                    game_players[p].reset(CreateMctsPlayer());
-                    break;
-
-                default:
-                    std::cerr << "Unsupported player type!\n";
-                    return 1;
-                }
+                game_players[p].reset(CreatePlayerFromDesc(*pt));
             }
             ++argi;
         }

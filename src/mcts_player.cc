@@ -70,6 +70,6 @@ std::optional<Turn> MctsPlayer::SelectTurn(const State &state) {
     return best_turn;
 }
 
-GamePlayer *CreateMctsPlayer() {
+GamePlayer *CreateMctsPlayer(const MctsPlayerOpts &) {
     return new MctsPlayer();
 }

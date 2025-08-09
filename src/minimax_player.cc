@@ -12,7 +12,7 @@
 
 namespace {
 
-constexpr int max_search_depth = 4;
+constexpr int default_max_search_depth = 4;
 constexpr int inf = 999999999;
 constexpr int win = 100000000;
 
@@ -59,7 +59,7 @@ int Search(const State &state, int depth_left, int alpha, int beta) {
         assert(state.Winner() == Other(state.NextPlayer()));
         // Next player loses. Value is discounted by how deep down the search
         // tree it is, to force winning sooner rather than alter.
-        return -(win + depth_left - max_search_depth);
+        return -(win + depth_left - default_max_search_depth);
     }
 
     if (depth_left == 0) {
@@ -111,11 +111,15 @@ int FindBestTurns(const State &state, int search_depth, std::vector<Turn> &best_
 
 class MinimaxPlayer : public GamePlayer {
 public:
-    MinimaxPlayer(): rng(InitializeRng()) {}
+    MinimaxPlayer(int max_search_depth) :
+            rng(InitializeRng()),
+            max_search_depth(max_search_depth) {}
+
     std::optional<Turn> SelectTurn(const State &state) override;
 
 private:
     rng_t rng;
+    int max_search_depth;
 };
 
 std::optional<Turn> MinimaxPlayer::SelectTurn(const State &state) {
@@ -138,6 +142,6 @@ std::optional<Turn> MinimaxPlayer::SelectTurn(const State &state) {
     return turn;
 }
 
-GamePlayer *CreateMinimaxPlayer() {
-    return new MinimaxPlayer();
+GamePlayer *CreateMinimaxPlayer(const MinimaxPlayerOpts &opts) {
+    return new MinimaxPlayer(opts.max_depth > 0 ? opts.max_depth : default_max_search_depth);
 }

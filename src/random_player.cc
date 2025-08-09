@@ -22,6 +22,6 @@ std::optional<Turn> RandomPlayer::SelectTurn(const State &state) {
     return turn;
 };
 
-GamePlayer *CreateRandomPlayer() {
+GamePlayer *CreateRandomPlayer(const RandomPlayerOpts &) {
     return new RandomPlayer();
 }

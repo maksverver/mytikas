@@ -5,8 +5,10 @@ An implementation of the board game Crossing Olympus.
 
 # Release building
 
+```
 % cmake -B build -D CMAKE_BUILD_TYPE=Release
 % make -C build all test
+```
 
 
 # Local development
@@ -17,3 +19,9 @@ An implementation of the board game Crossing Olympus.
 ```
 
 Binary ends up in `build/apps/play`.
+
+Example invocation:
+
+```
+% apps/play minimax,max_depth=2 rand
+```
