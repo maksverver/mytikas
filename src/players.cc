@@ -48,7 +48,7 @@ std::optional<MinimaxPlayerOpts> ParseMinimaxOpts(const param_map_t &params) {
     MinimaxPlayerOpts res = {};
     for (const auto &[key, val] : params) {
         if (key == "max_depth") {
-            if (std::from_chars(val.begin(), val.end(), res.max_depth).ec != std::errc{}) return {};
+            if (std::from_chars(val.data(), val.data() + val.size(), res.max_depth).ec != std::errc{}) return {};
         } else {
             return {};  // Unknown key
         }

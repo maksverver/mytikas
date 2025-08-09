@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <iomanip>
+#include <sstream>
 
 constexpr bool debug_encoding = true;
 
