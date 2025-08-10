@@ -836,7 +836,7 @@ void ExecuteAction(State &state, const Action &action) {
     switch (action.type) {
         case Action::SUMMON:
             assert(action.field == gate_index[player]);
-            state.Place(player, action.god, action.field);
+            state.Summon(action.god);  // updates `summonable` bitmask
             if (action.god == ARES) {
                 AresLand(state, action.field);
             }

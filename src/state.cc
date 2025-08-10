@@ -1,5 +1,6 @@
 #include "state.h"
 
+#include <algorithm>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -148,32 +149,44 @@ God GodById(char ch) {
     return static_cast<God>(i);
 }
 
-constexpr bool all_gods[2][GOD_COUNT] = {
-    {true, true, true, true, true, true, true, true, true, true, true, true},
-    {true, true, true, true, true, true, true, true, true, true, true, true},
-};
-static_assert(GOD_COUNT == 12);
-
-State State::Initial() {
-    return InitialWithGods(all_gods);
-}
-
-State State::InitialWithGods(const bool gods[2][GOD_COUNT]) {
+State State::InitialWithSummonable(std::array<god_mask_t, 2> summonable) {
     State state;
+    state.player = LIGHT;
+    std::copy_n(summonable.data(), summonable.size(), state.summonable);
     for (int p = 0; p < 2; ++p) {
         for (int g = 0; g < GOD_COUNT; ++g) {
             state.gods[p][g] = GodState{
-                .hp = gods[p][g] ? pantheon[g].hit : uint8_t{0},
+                .hp = pantheon[g].hit,
                 .fi = -1,
                 .fx = UNAFFECTED,
             };
         }
     }
     std::fill_n(state.fields, FIELD_COUNT, FieldState::UNOCCUPIED);
-    state.player = LIGHT;
     return state;
 }
 
+// State encoding
+//
+// States are encoded as a string of base-64 digits, at least 25, at most 49.
+//
+//  - 1 digit: next player (0/'A' for light, 1/'B' for dark)
+//  - for each player
+//      - for each god
+//          - 1 digit:
+//              0..40      field index: alive and in play
+//              41 ('p')   dead
+//              42 ('q')   summonable
+//              43 ('r')   reserved (alive but not yet summonable)
+//          - 1 digit (included only if god is in play)
+//              bit    0: chained (0/1)
+//              bit 1..5: hit points left
+//              bit    6: 0 (unused)
+//
+
+// Base 64 alphabet used by state encoding. This is the URL-safe base-64
+// alphabet which uses '-' and '_' as the last two digits, though currently
+// these are never used in a valid encoded state.
 constexpr std::string_view base64_digits = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 std::string State::Encode() const {
@@ -182,11 +195,17 @@ std::string State::Encode() const {
     for (int p = 0; p < 2; ++p) {
         for (int g = 0; g < GOD_COUNT; ++g) {
             const auto &gs = gods[p][g];
-            res += base64_digits[gs.hp > 0 ? gs.fi + 1 : FIELD_COUNT + 1];
-            if (gs.hp > 0 && gs.fi != -1) {
+            if (gs.fi != -1) {  // in play
+                res += base64_digits[gs.fi];
                 // Status effects except for CHAINED can be inferred from
                 // adjacent characters, so we only encode CHAINED:
                 res += base64_digits[(gs.hp << 1) | ((gs.fx & CHAINED) ? 1 : 0)];
+            } else if (gs.hp == 0) {  // dead
+                res += base64_digits[FIELD_COUNT + 0];
+            } else if ((summonable[p] & GodMask((God) g)) != 0) {  // summonable
+                res += base64_digits[FIELD_COUNT + 1];
+            } else {  // reserved
+                res += base64_digits[FIELD_COUNT + 2];
             }
         }
     }
@@ -217,25 +236,25 @@ std::optional<State> State::Decode(std::string_view sv) {
         t = static_cast<T>(i);
         return true;
     };
-    State state = State::Initial();
+    State state = State::InitialNoneSummonable();
     if (!read(state.player, 2)) return {};
     for (int p = 0; p < 2; ++p) {
         for (int g = 0; g < GOD_COUNT; ++g) {
             auto &gs = state.gods[p][g];
-            int8_t fi;
-            if (!read(fi, FIELD_COUNT + 2)) return {};
-            if (fi == FIELD_COUNT + 1) {
-                // Dead
-                gs.hp = 0;
-            } else if (fi == 0) {
-                // Not yet summoned
-            } else {
-                // Alive and in play
+            int fi;
+            if (!read(fi, FIELD_COUNT + 3)) return {};
+            if (fi < FIELD_COUNT) {  // in play
                 int hpfx;
                 if (!read(hpfx, (pantheon[g].hit + 1)*2)) return {};
                 gs.hp = hpfx >> 1;
                 gs.fx = (hpfx & 1) ? CHAINED : UNAFFECTED;
-                state.Place(AsPlayer(p), AsGod(g), fi - 1);
+                state.Place((Player)p, (God)g, fi);
+            } else if (fi == FIELD_COUNT) {  // dead
+                gs.hp = 0;
+            } else if (fi == FIELD_COUNT + 1) {  // summonable
+                state.summonable[p] |= GodMask((God)g);
+            } else {
+                assert(fi == FIELD_COUNT + 2);  // reserved
             }
         }
     }
@@ -246,6 +265,7 @@ std::optional<State> State::Decode(std::string_view sv) {
 void State::Place(Player player, God god, field_t field) {
     assert(!fields[field].occupied);
     assert(gods[player][god].fi == -1);
+    summonable[player] &= ~GodMask(god);
     fields[field] = FieldState {
         .occupied = true,
         .player   = player,
@@ -364,17 +384,16 @@ void State::DecHpForTest(Player player, God god, int dmg) {
     SetHpForTest(player, god, hp(player, god) - dmg);
 }
 
-unsigned State::PlayerGods(Player player) const {
-    unsigned res = 0, bit = 1;
+god_mask_t State::PlayerGods(Player player) const {
+    god_mask_t mask = summonable[player];
     for (int god = 0; god < GOD_COUNT; ++god) {
-        if (!IsDead(player, AsGod(god))) res |= bit;
-        bit += bit;
+        if (gods[player][god].fi != -1) mask |= GodMask((God) god);
     }
-    return res;
+    return mask;
 }
 
 bool State::IsAlmostOver() const {
-    return IsOver() || PlayerGods(LIGHT) == 0 || PlayerGods(DARK) == 0;
+    return IsOver() || !PlayerGods(LIGHT) || !PlayerGods(DARK);
 }
 
 int State::AlmostWinner() const {
@@ -407,10 +426,12 @@ int State::AlmostWinner() const {
 
 std::ostream &operator<<(std::ostream &os, const State::DebugPrint &dbg) {
     const State &s = dbg.state;
+    os << "player=" << (int) s.player << '\n';
     for (int p = 0; p < 2; ++p) {
+        os << "summonable=" << (unsigned) s.summonable[p] << '\n';
         for (int g = 0; g < GOD_COUNT; ++g) {
             const GodState &gs = s.gods[p][g];
-            os << "gods[" << p << "][" << g << "]:"
+            os  << "gods[" << p << "][" << g << "]:"
                 << " hp=" << (int) gs.hp
                 << " fi=" << (int) gs.fi
                 << " fx=" << (int) gs.fx
@@ -419,7 +440,7 @@ std::ostream &operator<<(std::ostream &os, const State::DebugPrint &dbg) {
     }
     for (int f = 0; f < FIELD_COUNT; ++f) {
         const FieldState &fs = s.fields[f];
-        std::cerr << "fields[" << f << "] ="
+        os  << "fields[" << f << "] ="
             << " occupied=" << (int) fs.occupied
             << " player=" << (int) fs.player
             << " god=" << (int) fs.god

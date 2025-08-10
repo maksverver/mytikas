@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
             }
             ++argi;
         } else {
-            state = State::Initial();
+            state = State::InitialAllSummonable();
         }
         assert(argi == argc);
     }

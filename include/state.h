@@ -174,6 +174,12 @@ enum God : uint8_t {
 
 static_assert(GOD_COUNT == 12);
 
+using god_mask_t = uint16_t;
+
+constexpr god_mask_t GodMask(God god) { return god_mask_t{1} << god; }
+
+constexpr god_mask_t ALL_GODS = (god_mask_t{1} << GOD_COUNT) - 1;
+
 inline God AsGod(int i) {
     assert(0 <= i && i < GOD_COUNT);
     return (God) i;
@@ -248,11 +254,18 @@ constexpr FieldState FieldState::UNOCCUPIED = FieldState{
 
 class State {
 public:
-    // Returns an initialized start state.
-    static State Initial();
+    // Returns a start state where all gods are summonable.
+    static inline State InitialAllSummonable() {
+        return InitialWithSummonable({ALL_GODS, ALL_GODS});
+    }
 
-    // Returns a start state with only the given gods (used for testing)
-    static State InitialWithGods(const bool gods[2][GOD_COUNT]);
+    // Returns a start state where no gods are summonable.
+    static State InitialNoneSummonable() {
+        return InitialWithSummonable({0, 0});
+    }
+
+    // Returns a start state where only the given gods are summonable.
+    static State InitialWithSummonable(std::array<god_mask_t, 2> summonable);
 
     // Decodes the string produced by Encode().
     static std::optional<State> Decode(std::string_view sv);
@@ -262,6 +275,7 @@ public:
     // restore states easily, and share them for testing purposes.
     std::string Encode() const;
 
+    // Access for properties of gods in play.
     int hp(Player player, God god) const { return gods[player][god].hp; }
     int fi(Player player, God god) const { return gods[player][god].fi; }
     StatusFx fx(Player player, God god) const { return gods[player][god].fx; }
@@ -271,17 +285,30 @@ public:
 
     Player NextPlayer() const { return player; }
 
+    god_mask_t Summonable(Player player) const { return summonable[player]; }
+
     bool IsEmpty(field_t i) const       { return !IsOccupied(i); }
     bool IsOccupied(field_t i) const    { return fields[i].occupied; }
     int PlayerAt(field_t i) const       { return fields[i].occupied ? fields[i].player : -1; }
     God GodAt(field_t i) const          { return fields[i].occupied ? fields[i].god : GOD_COUNT; }
 
+    // A god can be in one of four states:
+    //
+    //  - reserved   (hp >  0, fi == -1)
+    //  - summonable (hp >  0, fi == -1)
+    //  - in play    (hp >  0, fi != -1)
+    //  - dead       (hp == 0, fi == -1)
+    //
+    // A god that is reserved becomes summonable when the player draws its card.
+    // A god that is summonable comes into play when summoned.
+    // A god that is in play becomes dead when its hp is reduced to 0.
+    //
     bool IsDead(Player player, God god) const { return gods[player][god].hp == 0; }
-    bool IsDeployed(Player player, God god) const { return gods[player][god].fi != -1; }
-    bool IsSummonable(Player player, God god) const { return !IsDead(player, god) && !IsDeployed(player, god); }
-
-    // Returns a bitmask of gods for the given player that are not dead yet.
-    unsigned PlayerGods(Player player) const;
+    bool IsInPlay(Player player, God god) const { return gods[player][god].fi != -1; }
+    bool IsSummonable(Player player, God god) const { return (summonable[player] & GodMask(god)) != 0; }
+    bool IsReserved(Player player, God god) const {
+        return !IsDead(player, god) && !IsInPlay(player, god) && !IsSummonable(player, god);
+    }
 
     int Winner() const {
         if (PlayerAt(gate_index[1]) == 0) return 0;
@@ -300,6 +327,7 @@ public:
     int AlmostWinner() const;
 
     void Summon(God god) {
+        assert(summonable[player] & GodMask(god));
         Place(player, god, gate_index[player]);
     }
 
@@ -347,6 +375,9 @@ public:
     friend std::ostream &operator<<(std::ostream &os, const DebugPrint &dbg);
 
 private:
+    // Returns a bitmask of gods for the given player that are either summonable or in play.
+    god_mask_t PlayerGods(Player player) const;
+
     void Remove(Player player, God god, field_t field);
 
     void AddFx(Player player, God god, StatusFx new_fx) {
@@ -359,9 +390,10 @@ private:
         fx = static_cast<StatusFx>(fx & ~old_fx);
     }
 
+    Player      player;
+    god_mask_t  summonable[2];
     GodState    gods[2][GOD_COUNT];
     FieldState  fields[FIELD_COUNT];
-    Player      player;
 };
 
 std::ostream &operator<<(std::ostream &os, const State::DebugPrint &dbg);

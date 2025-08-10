@@ -198,13 +198,7 @@ State BoardTemplate::ToState(Player player) const {
         }
     }
 
-    bool init_gods[2][GOD_COUNT] = {};
-    for (auto [player, god, field] : places) {
-        assert(init_gods[player][god] == false);  // duplicate god on board
-        init_gods[player][god] = true;
-    }
-
-    State state = State::InitialWithGods(init_gods);
+    State state = State::InitialNoneSummonable();
     for (auto [player, god, field] : places) {
         state.Place(player, god, field);
     }
@@ -277,7 +271,7 @@ public:
 
 protected:
 
-    State state = State::Initial();
+    State state = State::InitialAllSummonable();
 
     std::vector<std::string> TurnStrings() {
         return ::TurnStrings(state);
@@ -936,7 +930,7 @@ TEST_F(MovesTest, Poseidon_AthenaDies) {
     State new_state = BoardTemplate(
             "     .     "
             "    ...    "
-            "   .z.h.   "
+            "   .znh.   "
             "  .......  "
             " ....P.... "
             "  .......  "
@@ -944,6 +938,7 @@ TEST_F(MovesTest, Poseidon_AthenaDies) {
             "    ...    "
             "     .     "
     ).ToState(DARK);
+    new_state.Kill(DARK, ATHENA);
     new_state.DecHpForTest(DARK, ZEUS,       4);
     new_state.DecHpForTest(DARK, HEPHAESTUS, 4);
 
