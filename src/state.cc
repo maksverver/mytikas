@@ -125,9 +125,9 @@ extern const size_t neighbors_index[FIELD_COUNT + 1] = {
 #define KNIGHT      Dirs::KNIGHT
 #define DIRECT(d)   (static_cast<Dirs>(d | Dirs::DIRECT))
 
-// Must keep this in sync with the Gods enum.
+// Must keep this in sync with the Gods enum, and with the pantheon in mytikas.js.
 constexpr GodInfo pantheon[GOD_COUNT] = {
-    // name        id  emoji  hit mov dmg rng  mov_dirs         atk_dirs     aura
+    // name        id  emoji  hit mov dmg rng  mov_dirs         atk_dirs        aura
     {"Zeus",       'Z', "⚡️", 10,   1, 10,  3, ALL8,            DIRECT(ORTHO),  UNAFFECTED   },
     {"Hephaestus", 'H', "🔨",  9,   2,  7,  2, ORTHO,           DIRECT(ORTHO),  DAMAGE_BOOST },
     {"hEra",       'E', "👸",  8,   2,  5,  2, DIAG,            DIAG,           UNAFFECTED   },
