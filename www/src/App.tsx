@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import BoardComponent from './BoardComponent.tsx';
+import GameComponent from './GameComponent.tsx';
 import { decodeStateString, type GameState } from './game/state.ts';
 import { executeTurn, generateTurns, initialStateString } from './wasm-api.ts';
 
@@ -47,6 +47,6 @@ export default function App() {
     }, [augmentedState]);
 
     return (
-        <BoardComponent state={augmentedState.gameState} />
+        <GameComponent state={augmentedState.gameState} />
     );
 }

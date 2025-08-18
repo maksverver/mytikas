@@ -1,8 +1,8 @@
-import './BoardComponent.css'
+import './GameComponent.css'
 
 import { fieldRows, fieldCols, fieldCoords, isOnBoard } from './game/board.ts';
 import { pantheon, type GodValue } from './game/gods.ts';
-import { playerNames, type PlayerValue } from './game/player.ts';
+import { Player, playerNames, type PlayerValue } from './game/player.ts';
 import { type AliveGodState, type GameState, type GodState } from './game/state.ts';
 
 const fieldSizePx = 60;
@@ -29,7 +29,7 @@ function PieceComponent({player, god, state}: {player: PlayerValue, god: GodValu
     /* TODO: show chained status */
     return (
         <div
-            className={`piece ${playerNames[player]}`}
+            className={`piece fade-in ${playerNames[player]}`}
             style={{
                 left: fieldCols[state.field] * fieldSizePx,
                 top:  fieldRows[state.field] * fieldSizePx,
@@ -42,7 +42,7 @@ function PieceComponent({player, god, state}: {player: PlayerValue, god: GodValu
     );
 }
 
-export default function BoardComponent({state}: {state: GameState}) {
+export function BoardComponent({state}: {state: GameState}) {
     return (
         <div className="board-container">
             <div className="board" id="board">
@@ -67,3 +67,45 @@ export default function BoardComponent({state}: {state: GameState}) {
         </div>
     );
 }
+
+export function GodRosterItem({player, god, state}: {player: PlayerValue, god: GodValue, state: GodState}) {
+    return (
+        <div className={`item ${state.state}`}>
+            <div className={`piece ${playerNames[player]}`}>
+                <div className="emoji">{pantheon[god].emoji}</div>
+                <div className="health">{pantheon[god].hit}</div>
+                <div className="name">{pantheon[god].name}</div>
+            </div>
+            <div className="eliminated">❌</div>
+        </div>
+    );
+}
+
+export function GodRoster({player, gods}: {player: PlayerValue, gods: GodState[]}) {
+    return (
+        <div className="roster">
+            {
+                gods.map((state, god) =>
+                    <GodRosterItem
+                        key={god}
+                        player={player as PlayerValue}
+                        god={god as GodValue}
+                        state={state}
+                    />
+                )
+            }
+        </div>
+    );
+}
+
+export function GameComponent({state}: {state: GameState}) {
+    return (
+        <div className="game-area">
+            <GodRoster player={Player.dark} gods={state.gods[Player.dark]}/>
+            <BoardComponent state={state}/>
+            <GodRoster player={Player.light} gods={state.gods[Player.light]}/>
+        </div>
+    );
+}
+
+export default GameComponent;

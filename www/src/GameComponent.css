@@ -1,23 +1,19 @@
 .board-container {
     position: relative;
-    width:  560px; /* 9×60px */
-    height: 560px; /* 9×60px */
 }
 
 .board {
     display: grid;
     grid-template-columns: repeat(9, 60px);
     grid-template-rows:    repeat(9, 60px);
-    width:  100%;
-    height: 100%;
+    margin: 20px;
 }
 
 .board-pieces {
     position: absolute;
     top: 0;
     left: 0;
-    width:  560px;  /* 9×60px */
-    height: 560px;  /* 9×60px */
+    margin: 20px;
 }
 
 .field.light { background: #dcb; }
@@ -34,6 +30,23 @@
 .field.border-right  { border-right-width:  2px;  padding-right:  -2px; }
 .field.border-left   { border-left-width:   2px;  padding-left:   -2px; }
 
+.fade-in {
+	opacity: 1;
+	animation-name: fadeInOpacity;
+	animation-iteration-count: 1;
+	animation-timing-function: ease-in;
+	animation-duration: 0.5s;
+}
+
+@keyframes fadeInOpacity {
+	0% {
+		opacity: 0;
+	}
+	100% {
+		opacity: 1;
+	}
+}
+
 .piece {
     position: absolute;
     width:       60px;
@@ -43,7 +56,7 @@
 }
 
 .piece .emoji {
-    margin:       6px;
+    margin:       4px;
     width:       48px;
     height:      48px;
     text-align: center;
@@ -117,4 +130,48 @@
     border: 1px solid #666;
     background: #111;
     color: white;
+}
+
+.roster {
+    display: grid;
+    grid-template-columns: repeat(6, 60px);
+    grid-template-rows:    repeat(2, 60px);
+    margin: 20px;
+}
+
+.roster .item {
+    position: relative;
+    width: 60px;
+    height: 60px;
+}
+
+.roster .item .piece {
+    opacity: 100%;
+    transition: opacity 0.5s ease;
+}
+
+.roster .item.alive .piece,
+.roster .item.dead .piece {
+    opacity: 15%;
+}
+
+.roster .item .eliminated {
+    position:       absolute;
+    display:        none;
+    font-size:      32px;
+    width:          60px;
+    height:         60px;
+    line-height:    60px;
+    text-align:     center;
+    user-select:    none;
+}
+
+.roster .item.dead .eliminated {
+    display: block;
+}
+
+.game-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
