@@ -1,4 +1,6 @@
-This directory contains the code for the browser frontend.
+This directory contains the code for the browser frontend, using React +
+TypeScript + Vite for the client code, and Emscripten to compile the C++ game
+logic to Web Assembly.
 
 
 BUILDING
@@ -12,18 +14,26 @@ To do this run, the build-wasm-api.sh script in the root of the project:
 ``
 
 This requires Emscripten to be installed. It builds two files: wasm-api.js and
-wasm-api.wasm, and copies them into the www/ subdirectory.
+wasm-api.wasm, and copies them into the www/generated/ subdirectory.
 
 Note that the script needs to be rerun whenever the C++ code changes.
 
-
-RUNNING
--------
-
-To run the web application, serve the files from this directory, e.g. with:
+To build the web app, run:
 
 ```
-% python3 -m http.server -b localhost 8080
+% npm run build
+```
+
+This writes the generated files to the dist/ subdirectory.
+
+
+DEVELOPMENT
+-----------
+
+To run the web application locally:
+
+```
+% npm run dev
 ````
 
-Now the web app should be available at http://localhost:8080/
+Now the web app should be available at http://localhost:5173/

@@ -189,7 +189,7 @@ enum Dirs : uint8_t {
     NONE       = 0,
     ORTHOGONAL = 1,
     DIAGONAL   = 2,
-    ALL8       = 3,
+    ALL8       = 3,  // orthogonal | diagonal
     KNIGHT     = 4,
     DIRECT     = 8,
 };

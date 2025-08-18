@@ -10,6 +10,7 @@ set -e -E -o pipefail
 cd "$(dirname "$(readlink -f "$0")")"
 
 BUILD_DIR=build-wasm-api
+INSTALL_DIR=www/generated
 TOOLCHAIN=/usr/lib/emscripten/cmake/Modules/Platform/Emscripten.cmake
 NODE=/usr/bin/node
 
@@ -27,4 +28,4 @@ fi
 
 cmake --build "$BUILD_DIR" --target wasm-api
 
-cp -f -l "$BUILD_DIR"/apps/wasm-api.{js,wasm} www/
+cp -f -l "$BUILD_DIR"/apps/wasm-api.{js,wasm} www/generated/

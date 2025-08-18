@@ -7,5 +7,11 @@ target_link_libraries(precalculate PRIVATE mytikas)
 if (DEFINED EMSCRIPTEN)
 add_executable(wasm-api wasm-api.cc)
 target_link_libraries(wasm-api PRIVATE mytikas)
-target_link_options(wasm-api PRIVATE "-sEXPORTED_FUNCTIONS=getValue,setValue" "-sEXPORTED_RUNTIME_METHODS=UTF8ToString")
+target_link_options(wasm-api PRIVATE
+        "-sEXPORTED_FUNCTIONS=getValue,setValue"
+        "-sEXPORTED_RUNTIME_METHODS=UTF8ToString,lengthBytesUTF8,stringToUTF8"
+        "-sMODULARIZE"
+        "-sEXPORT_ES6"
+        "-sEXPORT_NAME=MytikasWasmApi"
+)
 endif()

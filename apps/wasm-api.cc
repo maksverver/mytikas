@@ -51,8 +51,9 @@ EMSCRIPTEN_KEEPALIVE char *mytikas_execute_turn(
 ) {
     auto state = State::Decode(state_string);
     if (!state) return nullptr;
-    Turn turn;  // TODO: decode from turn_string
-    //ExecuteTurn(*s, turn);
+    auto turn = Turn::FromString(turn_string);
+    if (!turn) return nullptr;
+    ExecuteTurn(*state, *turn);
     return copy_to_c_string(state->Encode());
 }
 

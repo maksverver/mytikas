@@ -1,0 +1,5 @@
+# This directory contains auto-generated Javascript code.
+
+# Regenerate these by invoking build-wasm-api.sh at the top level directory.
+wasm-api.js
+wasm-api.wasm

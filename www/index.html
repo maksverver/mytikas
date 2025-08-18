@@ -2,27 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <title>Mytikas web view</title>
-    <link href="mytikas.css" rel="stylesheet">
+    <!--
+    <link rel="icon" type="image/svg+xml" href="/vite.svg">
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mytikas</title>
   </head>
   <body>
-    <div class="board-container">
-      <div class="board" id="board"></div>
-      <div class="board-pieces" id="board-pieces"></div>
-    </div>
-
-    <!-- order of these scripts is important for correctness!-->
-    <script src="mytikas.js" defer></script>
-    <script src="wasm-api-wrapper.js" defer></script>
-    <script defer>
-      var Module = {
-        onRuntimeInitialized() {
-          initializeWasmApi((wasmApi) => {
-            initializeMytikas(wasmApi);
-          });
-        }
-      };
-    </script>
-    <script src="wasm-api.js" defer></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

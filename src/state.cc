@@ -214,6 +214,7 @@ std::string State::Encode() const {
 
 constexpr bool debug_decode = true;
 
+// Keep this in sync with decodeStateString() in state.ts
 std::optional<State> State::Decode(std::string_view sv) {
     size_t pos = 0;
     auto read = [&]<class T>(T &t, int lim) -> bool {
