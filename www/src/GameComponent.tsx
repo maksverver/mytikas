@@ -76,7 +76,7 @@ export function GodRosterItem({player, god, state}: {player: PlayerValue, god: G
                 <div className="health">{pantheon[god].hit}</div>
                 <div className="name">{pantheon[god].name}</div>
             </div>
-            <div className="eliminated">❌</div>
+            <div className="eliminated">☠️</div>
         </div>
     );
 }

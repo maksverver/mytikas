@@ -71,9 +71,11 @@ EMSCRIPTEN_KEEPALIVE char *mytikas_generate_turns(
     auto state = State::Decode(state_string);
     if (!state) return nullptr;
     std::string turn_strings;
-    for (const Turn &turn : GenerateTurns(*state)) {
-        turn_strings += turn.ToString();
-        turn_strings += '\0';
+    if (!state->IsOver()) {
+        for (const Turn &turn : GenerateTurns(*state)) {
+            turn_strings += turn.ToString();
+            turn_strings += '\0';
+        }
     }
     return copy_to_c_string(turn_strings);
 }
