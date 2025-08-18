@@ -44,7 +44,7 @@ export default function App() {
             }, 1000);
             return () => clearTimeout(timeoutId);
         }
-    });
+    }, [augmentedState]);
 
     return (
         <BoardComponent state={augmentedState.gameState} />
