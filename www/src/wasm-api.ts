@@ -9,7 +9,7 @@ const {
     _initial_state_string,
     _mytikas_generate_turns,
     _mytikas_execute_turn,
-    _mytikas_ai_turn,
+    _mytikas_choose_ai_turn,
     getValue,
     // setValue,
     UTF8ToString,
@@ -91,7 +91,7 @@ export function chooseAiTurn(stateString: string, playerDescString: string): str
     const playerDescCstring = allocCstring(playerDescString);
     let turnCstring = null;
     try {
-        turnCstring = _mytikas_ai_turn(stateCstring, playerDescCstring);
+        turnCstring = _mytikas_choose_ai_turn(stateCstring, playerDescCstring);
         return fromCstring(turnCstring);
     } finally {
         freeCstring(stateCstring);

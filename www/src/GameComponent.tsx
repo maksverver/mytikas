@@ -4,19 +4,22 @@ import { fieldRows, fieldCols, fieldCoords, isOnBoard } from './game/board.ts';
 import { pantheon, type GodValue } from './game/gods.ts';
 import { Player, playerNames, type PlayerValue } from './game/player.ts';
 import { type AliveGodState, type GameState, type GodState } from './game/state.ts';
+import { classNames } from './utils.ts';
 
 const fieldSizePx = 60;
 
 function FieldComponent({fieldIndex}: {fieldIndex: number}) {
     const [row, col] = fieldCoords[fieldIndex];
-    const classNames = ['field', ['dark', 'light'][(row + col) % 2]];
-    if (!isOnBoard(row - 1, col)) classNames.push('border-top');
-    if (!isOnBoard(row + 1, col)) classNames.push('border-bottom');
-    if (!isOnBoard(row, col - 1)) classNames.push('border-left');
-    if (!isOnBoard(row, col + 1)) classNames.push('border-right');
     return (
         <div
-            className={classNames.join('  ')}
+            className={classNames({
+                'field': true,
+                [['dark', 'light'][(row + col) % 2]]: true,
+                'border-top':    !isOnBoard(row - 1, col),
+                'border-bottom': !isOnBoard(row + 1, col),
+                'border-left':   !isOnBoard(row, col - 1),
+                'border-right':  !isOnBoard(row, col + 1),
+            })}
             style={{
                 gridRow: row + 1,
                 gridColumn: col + 1,

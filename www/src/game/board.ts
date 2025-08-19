@@ -74,5 +74,6 @@ export function coordsToField(r: number, c: number): number|undefined {
 }
 
 export function parseField(s: string): number|undefined {
-    return fieldNames.indexOf(s);
+    const i = fieldNames.indexOf(s);
+    return i !== -1 ? i : undefined;
 }
