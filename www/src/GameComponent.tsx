@@ -1,7 +1,7 @@
 import './GameComponent.css'
 
 import { fieldRows, fieldCols, fieldCoords, isOnBoard } from './game/board.ts';
-import { pantheon, type GodValue } from './game/gods.ts';
+import { pantheon, StatusEffects, type GodValue } from './game/gods.ts';
 import { Player, playerNames, type PlayerValue } from './game/player.ts';
 import { type AliveGodState, type GameState, type GodState } from './game/state.ts';
 import { classNames } from './utils.ts';
@@ -41,6 +41,9 @@ function PieceComponent({player, god, state}: {player: PlayerValue, god: GodValu
             <div className="emoji">{pantheon[god].emoji}</div>
             <div className="health">{state.health}</div>
             <div className="name">{pantheon[god].name}</div>
+            {(state.effects & StatusEffects.chained)
+                ? <div className="chained">🔗</div>
+                : undefined}
         </div>
     );
 }
