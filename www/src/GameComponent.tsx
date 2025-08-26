@@ -1,6 +1,6 @@
 import './GameComponent.css'
 
-import { fieldRows, fieldCols, fieldCoords, isOnBoard, gateIndex } from './game/board.ts';
+import { fieldRows, fieldCols, fieldCoords, isOnBoard, gateIndex, fieldNames } from './game/board.ts';
 import { pantheon, StatusEffects, type GodValue } from './game/gods.ts';
 import { Player, playerNames, type PlayerValue } from './game/player.ts';
 import { GameState, type AliveGodState, type GodState } from './game/state.ts';
@@ -38,7 +38,9 @@ function FieldComponent({fieldIndex, actionType, selected, onClick}: FieldProps)
                 gridColumn: col + 1,
             }}
             onClick={onClick}
-        />
+        >
+            <div className="coords">{fieldNames[fieldIndex]}</div>
+        </div>
     );
 }
 

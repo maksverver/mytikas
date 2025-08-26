@@ -17,10 +17,22 @@
 }
 
 .field {
+    display: flex;
+    justify-content: center;
+    align-items: center;
     border-style: solid;
     border-color: #a984;
     border-width: 0;
 }
+
+.field .coords {
+    font-size: 20px;
+    font-weight: bold;
+    color: rgba(0, 0, 0, 0.1);
+    user-select: none;
+    pointer-events: none;
+}
+
 .field.light { background: #dcb; }
 .field.dark  { background: #cba; }
 .field.border-top    { border-top-width:    2px;  padding-top:    -2px; }
