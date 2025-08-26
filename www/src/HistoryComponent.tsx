@@ -55,10 +55,14 @@ export function HistoryComponent({state, selected, setSelected}: HistoryProps) {
     const moveToLast  = () => setSelected?.(undefined);
 
     const turnListRef = useRef<HTMLDivElement>(null);
+    const lastTurnIndex = selected ?? turnCount - 1;
     useEffect(() => {
-        turnListRef.current?.children[selected ?? turnCount - 1]?.scrollIntoView({
-            block: 'nearest', inline: 'nearest'});
-    }, [selected ?? turnCount]);
+        const turnListElem = turnListRef.current;
+        if (turnListElem != null && lastTurnIndex >= 0) {
+            turnListElem.children[lastTurnIndex].scrollIntoView({
+                block: 'nearest', inline: 'nearest'});
+        }
+    }, [lastTurnIndex]);
 
     useEffect(() => {
         if (setSelected == null) return;

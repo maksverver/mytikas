@@ -4,9 +4,8 @@ import { useEffect, useState } from 'react';
 import GameComponent from './GameComponent.tsx';
 import { HistoryComponent } from './HistoryComponent.tsx';
 import { addTurnToAugmentedState, createAugmentedState } from './AugmentedState.ts';
-import { chooseAiTurn, executeActions } from './wasm-api.ts';
-import { Action, partialTurnToString, type ActionTypeValue } from './game/turn.ts';
-import { decodeStateString, GameState } from './game/state.ts';
+import { Action, partialTurnToString } from './game/turn.ts';
+import { GameState } from './game/state.ts';
 import type { GodValue } from './game/gods.ts';
 
 function matchPartialTurn(partialTurn: readonly Action[], turn: readonly Action[]) {
@@ -31,7 +30,7 @@ function findNextActions(
     const res = new Map<number, Action>();
     for (const turn of turns) {
         if (matchPartialTurn(partialTurn, turn)) {
-            let action = turn[partialTurn.length];
+            const action = turn[partialTurn.length];
             if (action == null) {
                 isComplete = true;
             } else {
@@ -44,13 +43,7 @@ function findNextActions(
 
 function executePartialTurn(state: GameState, partialTurn: Action[]): GameState {
     if (partialTurn.length === 0) return state;
-    const newStateString = executeActions(state.toString(), partialTurnToString(partialTurn));
-    if (newStateString != null) {
-        const newState = decodeStateString(newStateString);
-        if (newState != null) return newState;
-    }
-    console.error('Failed to execute partial turn:', state, partialTurn);
-    throw new Error('Failed to execute partial turn');
+    return state.executeActions(partialTurn);
 }
 
 type PartialTurnProps = {
@@ -109,7 +102,7 @@ export default function App() {
         setPartialTurn([]);
     }
     function finishTurn() {
-        setAugmentedState(addTurnToAugmentedState(augmentedState, partialTurnToString(partialTurn)));
+        setAugmentedState(addTurnToAugmentedState(augmentedState, partialTurn));
         setPartialTurn([]);
     }
 
@@ -120,7 +113,7 @@ export default function App() {
     // Play AI moves:
     useEffect(() => {
         if (playerDesc == null || nextTurns.length === 0) return;
-        const nextTurnString = chooseAiTurn(lastGameState.toString(), playerDesc);
+        const nextTurnString = lastGameState.chooseAiTurn(playerDesc);
         if (nextTurnString == null) {
             console.error('AI move failed! stateString:', lastGameState.toString(), 'playerDesc:', playerDesc);
             alert('AI failed!');

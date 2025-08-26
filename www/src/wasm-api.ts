@@ -75,6 +75,7 @@ export function generateTurns(stateString: string): string[]|undefined {
     }
 }
 
+// Currently unused?
 export function executeAction(stateString: string, actionString: string): string|undefined {
     const stateCstring = allocCstring(stateString);
     const actionCstring = allocCstring(actionString);
@@ -117,6 +118,7 @@ export function executeTurn(stateString: string, turnString: string): string|und
     }
 }
 
+// Currently unused?
 export function endTurn(stateString: string): string|undefined {
     const stateCstring = allocCstring(stateString);
     let newStateCstring = null;

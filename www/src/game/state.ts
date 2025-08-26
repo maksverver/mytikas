@@ -5,7 +5,9 @@
 
 import { fieldCount } from "./board";
 import { God, godCount, pantheon, StatusEffects, type GodValue } from "./gods";
-import type { PlayerValue } from "./player";
+import { other, type PlayerValue } from "./player";
+import { Action, parseTurnString, parseTurnStrings, partialTurnToString, Turn } from "./turn.ts";
+import * as wasmApi from '../wasm-api.ts';
 
 const base64Digits = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
@@ -36,6 +38,67 @@ export class GameState {
         this.gods = gods;
     }
 
+    static fromString(stateString: string) {
+        return decodeStateString(stateString);
+    }
+
+    // The following functions are wrappers around those defined in wasm-api.ts:
+
+    static initial() {
+        return GameState.fromString(wasmApi.initialStateString);
+    }
+
+    generateTurns(): Turn[] {
+        const nextTurnStrings = wasmApi.generateTurns(this.toString());
+        if (nextTurnStrings == null) {
+            console.error('Invalid state string:', this);
+            throw new Error('Invalid state string!');
+        }
+        return parseTurnStrings(nextTurnStrings);
+    }
+
+    // Not currently implemented:
+    // function executeAction(stateString: string, actionString: string): string|undefined;
+
+    executeActions(partialTurn: Action[]): GameState {
+        const newStateString = wasmApi.executeActions(this.toString(), partialTurnToString(partialTurn));
+        if (newStateString == null) {
+            console.error('Failed to execute partial turn:', this, partialTurn);
+            throw new Error('Failed to execute partial turn');
+        }
+        return decodeStateString(newStateString);
+    }
+
+    executeTurn(turn: Turn): GameState {
+        const oldStateString = this.toString();
+        const newStateString = wasmApi.executeTurn(oldStateString, turn.toString());
+        if (newStateString == null || turn == null) {
+            console.error('Invalid turn:', turn);
+            throw new Error('Invalid turn string!');
+        }
+        return decodeStateString(newStateString);
+    }
+
+    endTurn(): GameState {
+        // Note: this does not currently call the WASM API:
+        //
+        // function endTurn(stateString: string): string|undefined;
+        //
+        return new GameState(other(this.player), this.gods);
+    }
+
+    // Chooses a turn using an algorithm described by the given playerDesc (see
+    // the CLI app for options). This may only be called when there are moves
+    // left, i.e., when generateTurns() returns a nonempty list!
+    chooseAiTurn(playerDesc: string): Turn {
+        const turnString = wasmApi.chooseAiTurn(this.toString(), playerDesc);
+        if (turnString == null) {
+            console.error('AI move failed! stateString:', this, 'playerDesc:', playerDesc);
+            throw new Error('AI failed!');
+        }
+        return parseTurnString(turnString);
+    }
+
     toString() {
         let res = '';
         res += base64Digits[this.player];
@@ -63,7 +126,7 @@ export class GameState {
     }
 };
 
-export function decodeStateString(s: string): GameState|undefined {
+export function decodeStateString(s: string): GameState {
     let pos = 0;
     function read(lim: number): number {
         if (pos >= s.length) {
