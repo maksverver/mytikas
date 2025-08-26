@@ -1,5 +1,39 @@
 .mytikas-app {
     display: flex;
     flex-direction: row;
-    height: 100%;
+    max-height: 100%;
+}
+
+.right-panel {
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    gap: 20px;
+}
+
+.partial-turn {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
+.partial-turn .turn-string {
+    flex-grow: 1;
+    /* Keep consistent with .history .turn */
+    padding: 4px 16px;
+    font: 16px monospace;
+    white-space: pre;
+}
+
+.right-panel button {
+    flex: 1;
+    font-size: 14pt;
+    padding: 8px;
+    border-color: #ddd;
+    background: #ccc;
+}
+
+.right-panel button:disabled {
+    opacity: 50%;
+    background: #888;
 }

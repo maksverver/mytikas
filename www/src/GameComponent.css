@@ -16,19 +16,40 @@
     margin: 20px;
 }
 
-.field.light { background: #dcb; }
-.field.dark  { background: #cba; }
-
 .field {
     border-style: solid;
     border-color: #a984;
     border-width: 0;
 }
-
+.field.light { background: #dcb; }
+.field.dark  { background: #cba; }
 .field.border-top    { border-top-width:    2px;  padding-top:    -2px; }
 .field.border-bottom { border-bottom-width: 2px;  padding-bottom: -2px; }
 .field.border-right  { border-right-width:  2px;  padding-right:  -2px; }
 .field.border-left   { border-left-width:   2px;  padding-left:   -2px; }
+
+.field.selected {
+    background-color: pink;
+}
+
+.field.clickable {
+    cursor: pointer;
+}
+
+.field.clickable        { background-color: #ffffb0; }
+.field.clickable.dark   { background-color: #e8e890; }
+
+/* Default colors are used to indicate move (light blue). */
+.field.clickable.move        { background-color: #b0d0ff; }
+.field.clickable.move.dark   { background-color: #90b0ff; }
+
+/* Attack actions: light red */
+.field.clickable.attack      { background-color: #ffc0c0; }
+.field.clickable.attack.dark { background-color: #ff6060; }
+
+/* Special actions: purple */
+.field.clickable.special      { background-color: #c060c0; }
+.field.clickable.special.dark { background-color: #a040af; }
 
 .fade-in {
 	opacity: 1;
@@ -53,6 +74,7 @@
     height:      60px;
     transition: left 0.5s ease, top 0.5s ease;
     user-select: none;
+    pointer-events: none;
 }
 
 .piece .emoji {
@@ -156,6 +178,11 @@
     position: relative;
     width: 60px;
     height: 60px;
+}
+
+.roster .item.clickable {
+    background-color: #d0e0ff;
+    cursor: pointer;
 }
 
 .roster .item .piece {

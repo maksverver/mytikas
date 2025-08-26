@@ -1,8 +1,9 @@
 export const Player = Object.freeze({
     light: 0,
     dark:  1,
-    count: 2,
 });
+
+export const playerCount = 2;
 
 export type PlayerValue = typeof Player[keyof typeof Player];
 
@@ -14,8 +15,9 @@ export const playerByName = Object.freeze({
 });
 
 export function other(player: PlayerValue): PlayerValue {
-    return (
-        player === Player.light ? Player.dark :
-        player === Player.dark  ? Player.light :
-        Player.count);
+    switch (player) {
+        case Player.light: return Player.dark;
+        case Player.dark:  return Player.light;
+    }
+    throw new Error('Invalid player value: ' + player);
 }

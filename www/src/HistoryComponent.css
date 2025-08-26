@@ -1,8 +1,9 @@
 .history {
+    flex-grow: 1;
     display: flex;
     flex-direction: column;
-    margin: 20px;
     gap: 10px;
+    overflow: hidden;
 }
 
 .history .buttons {
@@ -15,7 +16,7 @@
     flex: 1;
     font-size: 14pt;
     padding: 8px;
-    border: none;
+    border-color: #ddd;
     background: #ccc;
 }
 
@@ -31,6 +32,7 @@
     max-height: 100%;
 }
 
+/* Keep consistent with .partial-turn .turn-string */
 .history .turn {
     padding: 4px 16px;
     font: 16px monospace;
@@ -41,24 +43,27 @@
     background: white;
 }
 
-.history .turn.dark {
+.history .turn.selectable.dark {
     background: #ddd;
 }
 
-.history .turn:hover {
+.history .turn.selected {
+    font-weight: bold;
+    background: #ff0;
+}
+
+.history .turn.selectable.dark.selected {
+    background: #dd0;
+}
+
+.history .turn.selectable {
     cursor: pointer;
+}
+
+.history .turn.selectable:hover:not(.selected) {
     background: #ffd;
 }
 
-.history .turn.selected {
-    background: #ff0;
-    font-weight: bold;
-}
-
-.history .turn.dark:hover {
+.history .turn.selectable.dark:hover:not(.selected) {
     background: #dda;
-}
-
-.history .turn.dark.selected {
-    background: #dd0;
 }

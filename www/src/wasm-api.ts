@@ -8,7 +8,10 @@ const {
     _mytikas_free,
     _initial_state_string,
     _mytikas_generate_turns,
+    _mytikas_execute_action,
+    _mytikas_execute_actions,
     _mytikas_execute_turn,
+    _mytikas_end_turn,
     _mytikas_choose_ai_turn,
     getValue,
     // setValue,
@@ -72,6 +75,34 @@ export function generateTurns(stateString: string): string[]|undefined {
     }
 }
 
+export function executeAction(stateString: string, actionString: string): string|undefined {
+    const stateCstring = allocCstring(stateString);
+    const actionCstring = allocCstring(actionString);
+    let newStateCstring = null;
+    try {
+        newStateCstring = _mytikas_execute_action(stateCstring, actionCstring);
+        return fromCstring(newStateCstring);
+    } finally {
+        freeCstring(stateCstring);
+        freeCstring(actionCstring);
+        freeCstring(newStateCstring);
+    }
+}
+
+export function executeActions(stateString: string, actionsString: string): string|undefined {
+    const stateCstring = allocCstring(stateString);
+    const actionsCstring = allocCstring(actionsString);
+    let newStateCstring = null;
+    try {
+        newStateCstring = _mytikas_execute_actions(stateCstring, actionsCstring);
+        return fromCstring(newStateCstring);
+    } finally {
+        freeCstring(stateCstring);
+        freeCstring(actionsCstring);
+        freeCstring(newStateCstring);
+    }
+}
+
 export function executeTurn(stateString: string, turnString: string): string|undefined {
     const stateCstring = allocCstring(stateString);
     const turnCstring = allocCstring(turnString);
@@ -82,6 +113,18 @@ export function executeTurn(stateString: string, turnString: string): string|und
     } finally {
         freeCstring(stateCstring);
         freeCstring(turnCstring);
+        freeCstring(newStateCstring);
+    }
+}
+
+export function endTurn(stateString: string): string|undefined {
+    const stateCstring = allocCstring(stateString);
+    let newStateCstring = null;
+    try {
+        newStateCstring = _mytikas_end_turn(stateCstring);
+        return fromCstring(newStateCstring);
+    } finally {
+        freeCstring(stateCstring);
         freeCstring(newStateCstring);
     }
 }

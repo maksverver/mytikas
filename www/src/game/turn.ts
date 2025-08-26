@@ -1,19 +1,47 @@
-import { coordsToField, parseField } from "./board";
-import { pantheon, type GodValue } from "./gods";
-import type { PlayerValue } from "./player";
+import { fieldCount, fieldNames, parseField } from "./board";
+import { godCount, pantheon, type GodValue } from "./gods";
 
-export type ActionTypeValue = 'summon' | 'move' | 'attack' | 'special';
+export const ActionType = {
+    summon:  0,
+    move:    1,
+    attack:  2,
+    special: 3,
+};
+export type ActionTypeValue = typeof ActionType[keyof typeof ActionType];
 
-export type Action = {
+const actionTypeNames = ['summon', 'move', 'attack', 'special'];
+const actionTypeChars = "@>!+";
+
+export class Action {
     type: ActionTypeValue;
     god: GodValue;
     field: number;
-};
 
-export type Turn = Action[];
+    constructor(type: ActionTypeValue, god: GodValue, field: number) {
+        this.type = type;
+        this.god = god;
+        this.field = field;
+    }
 
-const actionTypeChars = "@>!+";
-const actionTypeNames = ['summon', 'move', 'attack', 'special'];
+    // Encodes the current action as an integer between 0 and 4*12*41 == 1968 (exclusive).
+    // This is useful for equality comparisons.
+    encodeInt() {
+        return ((this.type * godCount) + this.god) * fieldCount + this.field;
+    }
+
+    equals(that: Action) {
+        return (
+            this.type  === that.type  &&
+            this.god   === that.god   &&
+            this.field === that.field)
+    }
+
+    // Encodes the current action in a standard string like Z@e1 (god, type, field).
+    // The reverse of parseAction().
+    toString() {
+        return pantheon[this.god]?.id + actionTypeChars[this.type] + fieldNames[this.field];
+    }
+}
 
 export function parseAction(s: string): Action {
     if (s.length !== 4) {
@@ -23,7 +51,7 @@ export function parseAction(s: string): Action {
     const typeId = s.charAt(1);
     const fieldId = s.substring(2);
     const god = pantheon.findIndex((god) => god.id === s.charAt(0))
-    if (god === -1) {
+    if (god < 0 || god >= godCount) {
         throw new Error(`Invalid god id: ${godId}`);
     }
     const type = actionTypeChars.indexOf(typeId);
@@ -34,11 +62,17 @@ export function parseAction(s: string): Action {
     if (fieldIndex == null) {
         throw new Error(`Invalid field id: ${fieldId}`);
     }
-    return {
-        type: typeId as ActionTypeValue,
-        god: god as GodValue,
-        field: fieldIndex,
-    };
+    return new Action(type, god as GodValue, fieldIndex);
+}
+
+export class Turn extends Array<Action> {
+    toString() {
+        return partialTurnToString(this);
+    }
+}
+
+export function partialTurnToString(actions: Action[]): string {
+    return actions.length > 0 ? actions.join(',') : 'x';
 }
 
 export function parseTurnString(s: string): Turn {

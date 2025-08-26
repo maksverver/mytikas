@@ -39,6 +39,42 @@ EMSCRIPTEN_KEEPALIVE void mytikas_free(void *p) {
     free(p);
 }
 
+// Calculates the new state after executing the given action.
+//
+// Note that the action MUST be valid in the given state, which is currently not
+// validated.
+//
+// The result must be freed with mytikas_free().
+EMSCRIPTEN_KEEPALIVE char *mytikas_execute_action(
+    const char *state_string,
+    const char *action_string
+) {
+    auto state = State::Decode(state_string);
+    if (!state) return nullptr;
+    auto action = Action::FromString(action_string);
+    if (!action) return nullptr;
+    ExecuteAction(*state, *action);
+    return copy_to_c_string(state->Encode());
+}
+
+// Calculates the new state after executing the given actions.
+//
+// Note that the actions MUST be valid in the given state, which is currently not
+// validated.
+//
+// The result must be freed with mytikas_free().
+EMSCRIPTEN_KEEPALIVE char *mytikas_execute_actions(
+    const char *state_string,
+    const char *actions_string
+) {
+    auto state = State::Decode(state_string);
+    if (!state) return nullptr;
+    auto turn = Turn::FromString(actions_string);
+    if (!turn) return nullptr;
+    ExecuteActions(*state, *turn);
+    return copy_to_c_string(state->Encode());
+}
+
 // Calculates the new state after executing the given turn.
 //
 // Note that the turn MUST be valid in the given state, which is currently not
@@ -54,6 +90,17 @@ EMSCRIPTEN_KEEPALIVE char *mytikas_execute_turn(
     auto turn = Turn::FromString(turn_string);
     if (!turn) return nullptr;
     ExecuteTurn(*state, *turn);
+    return copy_to_c_string(state->Encode());
+}
+
+// Calculates the new state after ending the turn, which effectively only
+// swaps the players.
+//
+// The result must be freed with mytikas_free().
+EMSCRIPTEN_KEEPALIVE char *mytikas_end_turn(const char *state_string) {
+    auto state = State::Decode(state_string);
+    if (!state) return nullptr;
+    state->EndTurn();
     return copy_to_c_string(state->Encode());
 }
 

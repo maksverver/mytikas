@@ -86,6 +86,7 @@ struct Turn {
 std::vector<Turn> GenerateTurns(const State &state);
 
 void ExecuteAction(State &state, const Action &action);
+void ExecuteActions(State &state, const Turn &turn);
 void ExecuteTurn(State &state, const Turn &turn);
 
 std::ostream &operator<<(std::ostream &os, const Action &a);

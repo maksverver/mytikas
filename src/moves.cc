@@ -892,17 +892,27 @@ void ExecuteAction(State &state, const Action &action) {
     }
 }
 
-// Executes a turn in the given state, by executing all actions.
+// Executes all actions.
+//
+// This does NOT verify that the turn is valid; the caller must ensure this!
+// The easiest way is to make sure the turn is included in the result of
+// GenerateTurns() when called on the same state.
+//
+void ExecuteActions(State &state, const Turn &turn) {
+    assert(!state.IsOver());
+    for (int i = 0; i < turn.naction; ++i) {
+        ExecuteAction(state, turn.actions[i]);
+    }
+}
+
+// Executes a turn by executing all actions and then switching players.
 //
 // This does NOT verify that the turn is valid; the caller must ensure this!
 // The easiest way is to make sure the turn is included in the result of
 // GenerateTurns() when called on the same state.
 //
 void ExecuteTurn(State &state, const Turn &turn) {
-    assert(!state.IsOver());
-    for (int i = 0; i < turn.naction; ++i) {
-        ExecuteAction(state, turn.actions[i]);
-    }
+    ExecuteActions(state, turn);
     state.EndTurn();
 }
 
@@ -921,14 +931,14 @@ std::string Turn::ToString() const {
 std::optional<Action> Action::FromString(std::string s) {
     std::istringstream iss(std::move(s));
     Action action;
-    if (iss >> action) return action;
+    if ((iss >> action) && iss.peek() == EOF) return action;
     return {};
 }
 
 std::optional<Turn> Turn::FromString(std::string s) {
     std::istringstream iss(std::move(s));
     Turn turn;
-    if (iss >> turn) return turn;
+    if ((iss >> turn) && iss.peek() == EOF) return turn;
     return {};
 }
 

@@ -1,5 +1,3 @@
-import { Player, type PlayerValue } from "./player";
-
 export const boardSize = 9;
 
 const _u = undefined;
@@ -59,11 +57,7 @@ export const fieldNames = Object.freeze([
                             'e9',
 ]);
 
-export function other(player: PlayerValue): PlayerValue {
-    return (
-        player === Player.light ? Player.dark :
-        player === Player.dark  ? Player.light : Player.count);
-}
+export const gateIndex: readonly [number, number] = Object.freeze([0, 40]);
 
 export function isOnBoard(r: number, c: number): boolean {
     return Math.abs(r - 4) + Math.abs(c - 4) < 5;

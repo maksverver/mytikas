@@ -18,7 +18,14 @@ export type TurnProps = {
 function TurnComponent({index, selected, turnString, prevState, nextState, onClick}: TurnProps) {
     return (
         <div
-            className={classNames({'turn': true, [playerNames[index%2]]: true, selected})}
+            className={
+                classNames({
+                    'turn': true,
+                    [playerNames[index%2]]: true,
+                    selectable: onClick != null,
+                    selected,
+                })
+            }
             onClick={onClick}
         >
             {String(index + 1).padStart(3, ' ')}. {turnString}
@@ -32,6 +39,10 @@ export type HistoryProps = {
     setSelected?: (i: number|undefined) => void,
 }
 
+// Displays the history of turns played so far, with a set of control buttons to
+// move to the front or back of the list.
+//
+// If `setSelected` is undefined, selection is disabled.
 export function HistoryComponent({state, selected, setSelected}: HistoryProps) {
     const turnCount = state.history.length;
 
@@ -50,6 +61,7 @@ export function HistoryComponent({state, selected, setSelected}: HistoryProps) {
     }, [selected ?? turnCount]);
 
     useEffect(() => {
+        if (setSelected == null) return;
         function handleKeyDown(e: KeyboardEvent) {
             switch (e.key) {
             case 'Home':       if (hasPrev) moveToFirst(); break;
@@ -67,36 +79,37 @@ export function HistoryComponent({state, selected, setSelected}: HistoryProps) {
             <div className="buttons">
                 <button
                     title="To game start"
-                    disabled={!hasPrev}
+                    disabled={setSelected == null || !hasPrev}
                     onClick={moveToFirst}
                 >⏮️</button>
                 <button
                     title="Previous turn"
-                    disabled={!hasPrev}
+                    disabled={setSelected == null || !hasPrev}
                     onClick={moveToPrev}
                 >◀️</button>
                 <button
                     title="Next turn"
-                    disabled={!hasNext}
+                    disabled={setSelected == null || !hasNext}
                     onClick={moveToNext}
                 >▶️</button>
                 <button
                     title="To game end"
-                    disabled={!hasNext}
+                    disabled={setSelected == null || !hasNext}
                     onClick={moveToLast}
                 >⏭️</button>
             </div>
             <div className="turn-list" ref={turnListRef}>
                 {
-                    state.history.map(([turnString, _], i) =>
+                    state.history.map((turn, i) =>
                         <TurnComponent
                             key={i}
                             index={i}
                             selected={selected === i}
-                            turnString={turnString}
-                            prevState={state.gameStates[i][1]}
-                            nextState={state.gameStates[i + 1][1]}
-                            onClick={() => setSelected?.(i === selected ? undefined : i)}
+                            turnString={String(turn)}
+                            prevState={state.gameStates[i]}
+                            nextState={state.gameStates[i + 1]}
+                            onClick={setSelected == null ? undefined :
+                                () => setSelected(i === selected ? undefined : i)}
                         />
                     )
                 }

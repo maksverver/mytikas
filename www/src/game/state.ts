@@ -1,6 +1,13 @@
+// Game state representation.
+//
+// Keep the encoding/decoding logic in sync with State::Encode() /
+// State::Decode() defined in state.cc.
+
 import { fieldCount } from "./board";
-import { God, pantheon, StatusEffects, type GodValue } from "./gods";
+import { God, godCount, pantheon, StatusEffects, type GodValue } from "./gods";
 import type { PlayerValue } from "./player";
+
+const base64Digits = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 export type ReservedGodState = {
     state:   'reserved',  // not yet available
@@ -20,14 +27,42 @@ export type DeadGodState = {
 
 export type GodState = ReservedGodState|AvailableGodState|AliveGodState|DeadGodState;
 
-export type GameState = {
-    player: PlayerValue,
-    gods: [GodState[], GodState[]],
+export class GameState {
+    readonly player: PlayerValue;
+    readonly gods: readonly [readonly GodState[], readonly GodState[]];
+
+    constructor(player: PlayerValue, gods: readonly [readonly GodState[], readonly GodState[]]) {
+        this.player = player;
+        this.gods = gods;
+    }
+
+    toString() {
+        let res = '';
+        res += base64Digits[this.player];
+        for (let p = 0; p < 2; ++p) {
+            for (let g = 0; g < godCount; ++g) {
+                const gs = this.gods[p][g];
+                switch (gs.state) {
+                    case 'alive':
+                        res += base64Digits[gs.field];
+                        res += base64Digits[(gs.health << 1) | ((gs.effects & StatusEffects.chained) ? 1 : 0)];
+                        break;
+                    case 'dead':
+                        res += base64Digits[fieldCount + 0];
+                        break;
+                    case 'available':
+                        res += base64Digits[fieldCount + 1];
+                        break;
+                    case 'reserved':
+                        res += base64Digits[fieldCount + 2];
+                        break;
+                }
+            }
+        }
+        return res;
+    }
 };
 
-const base64Digits = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-
-// Keep this in sync with State::Encode() / State::Decode() in state.cc
 export function decodeStateString(s: string): GameState|undefined {
     let pos = 0;
     function read(lim: number): number {
@@ -71,5 +106,11 @@ export function decodeStateString(s: string): GameState|undefined {
     const player = read(2) as PlayerValue;
     const gods: [GodState[], GodState[]] = [decodeGods(), decodeGods()];
     // TODO: infer status effects from surrounding pieces
-    return { player, gods };
+
+    const res = new GameState(player, gods);
+    if (String(res) != s) {
+        console.error('Game state encoding error! Expected:', s, 'Received:', res);
+        alert('Game state encoding error!');
+    }
+    return res;
 }

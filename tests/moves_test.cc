@@ -10,7 +10,6 @@ using ::testing::UnorderedElementsAreArray;
 #include "moves.h"
 
 #include <iostream>
-#include <iomanip>
 #include <cassert>
 #include <cctype>
 #include <string_view>
