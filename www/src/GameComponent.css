@@ -41,17 +41,17 @@
 .field.border-left   { border-left-width:   2px;  padding-left:   -2px; }
 
 .field.selected {
-    background-color: pink;
+    background-color: yellow;
 }
 
 .field.clickable {
     cursor: pointer;
 }
 
-.field.clickable        { background-color: #ffffb0; }
-.field.clickable.dark   { background-color: #e8e890; }
+.field.clickable:not(.selected)        { background-color: #ffffb0; }
+.field.clickable:not(.selected).dark   { background-color: #e8e890; }
 
-/* Default colors are used to indicate move (light blue). */
+/* Move actions: light blue. */
 .field.clickable.move        { background-color: #b0d0ff; }
 .field.clickable.move.dark   { background-color: #90b0ff; }
 
