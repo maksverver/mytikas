@@ -77,7 +77,7 @@ std::optional<PlayerDesc> ParsePlayerDesc(std::string_view sv) {
         params = std::move(*opt_params);
     }
 
-    if (type == "rand") {
+    if (type == "random") {
         if (auto opts = ParseRandomOpts(params); !opts) {
             return {};
         } else {

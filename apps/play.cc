@@ -13,7 +13,19 @@ namespace {
 void PrintUsage() {
     std::cout <<
         "Usage: play <light> <dark> [<state>]\n"
-        "Where light/dark is one of 'cli', 'rand', 'minimax', or 'mcts'\n";
+        "\n"
+        "Where <light> and <dark> is a player descriptor, which must be one of:\n"
+        "\n"
+        "   cli:      play manually via the command line interface\n"
+        "   random:   play randomly\n"
+        "   minimax:  Minimax algorithm\n"
+        "   mcts:     Monte Carlo Tree Search algorithm (incomplete)\n"
+        "\n"
+        "Algorithm specific options:\n"
+        "\n"
+        "   minimax,max_depth=<n>   Maximum search depth (default: 4)\n"
+        "   minimax,experiment      Enable experimental behavior (do not use)\n"
+        "\n";
 }
 
 }  // namespace

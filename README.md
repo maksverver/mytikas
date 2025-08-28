@@ -23,5 +23,5 @@ Binary ends up in `build/apps/play`.
 Example invocation:
 
 ```
-% apps/play minimax,max_depth=2 rand
+% apps/play minimax,max_depth=2 random
 ```
