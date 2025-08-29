@@ -37,3 +37,39 @@
     opacity: 50%;
     background: #888;
 }
+
+.player-select {
+    display: grid;
+    grid-template-columns: 50% 50%;
+    gap: 4px;
+}
+
+.player-select label {
+    font-size: 14pt;
+    text-align: center;
+}
+
+.player-select select {
+    font-size: 12pt;
+    background: #ddd;
+}
+
+/* Try to keep button styling in sync with buttons defined in HistoryComponent.css */
+.history .buttons {
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+}
+
+.history .buttons button {
+    flex: 1;
+    font-size: 14pt;
+    padding: 8px;
+    border-color: #ddd;
+    background: #ccc;
+}
+
+.history .buttons button:disabled {
+    opacity: 50%;
+    background: #888;
+}

@@ -4,34 +4,46 @@
 import { GameState } from "./game/state";
 import { type Turn } from "./game/turn";
 
-export type AugmentedState = {
-    gameStates: GameState[],
+export class AugmentedState {
+    // All game states in order; contains at least 1 element (the initial state).
+    readonly gameStates: readonly GameState[];
 
-    history: Turn[],
+    // Turns that were played; history.length === gameStates.length - 1.
+    // The i-th turn was played in state gameStates[i] resulting in gameStates[i + 1].
+    readonly history: readonly Turn[];
 
-    // Possible turns in the *last* gamesate.
-    nextTurns: Turn[],
+    // List of turns that are possible in the latest gameState, generated with
+    // gameStates.at(-1).generateTurns().
+    readonly nextTurns: readonly Turn[];
+
+    get lastGameState(): GameState {
+        return this.gameStates.at(-1)!;
+    }
+
+    // Don't call this directly; use one of the static factory methods.
+    constructor(
+        gameStates: readonly GameState[],
+        history: readonly Turn[],
+        nextTurns: readonly Turn[],
+    ) {
+        this.gameStates = gameStates;
+        this.history = history;
+        this.nextTurns = nextTurns;;
+    }
+
+    static fromGameState(state: GameState) {
+        return new AugmentedState([state], [], state.generateTurns());
+    }
+
+    static fromInitialState() {
+        return this.fromGameState(GameState.initial());
+    }
+
+    addTurn(turn: Turn): AugmentedState {
+        const nextGameState = this.lastGameState.executeTurn(turn);
+        return new AugmentedState(
+            [...this.gameStates, nextGameState],
+            [...this.history, turn],
+            nextGameState.generateTurns());
+    }
 };
-
-function calculateNextTurns(state: AugmentedState): AugmentedState {
-    const lastGameState = state.gameStates.at(-1)!;
-    return {...state, nextTurns: lastGameState.generateTurns()};
-}
-
-export function createAugmentedState(gameState = GameState.initial()): AugmentedState {
-    return calculateNextTurns({
-        gameStates: [gameState],
-        history: [],
-        nextTurns: [],
-    });
-}
-
-export function addTurnToAugmentedState(augmentedState: AugmentedState, turn: Turn): AugmentedState {
-    const lastGameState = augmentedState.gameStates.at(-1)!;
-    const nextGameState = lastGameState.executeTurn(turn);
-    return calculateNextTurns({
-        gameStates: [...augmentedState.gameStates, nextGameState],
-        history: [...augmentedState.history, turn],
-        nextTurns: [],
-    });
-}

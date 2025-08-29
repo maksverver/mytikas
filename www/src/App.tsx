@@ -1,12 +1,23 @@
 import './App.css'
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import GameComponent from './GameComponent.tsx';
 import { HistoryComponent } from './HistoryComponent.tsx';
-import { addTurnToAugmentedState, createAugmentedState } from './AugmentedState.ts';
-import { Action, partialTurnToString } from './game/turn.ts';
+import { AugmentedState } from './AugmentedState.ts';
+import { Action, partialTurnToString, Turn } from './game/turn.ts';
 import { GameState } from './game/state.ts';
 import type { GodValue } from './game/gods.ts';
+
+const playerOptions: Record<string, {title: string, playerDesc: string|null}> = {
+    human:    { title: 'Human',             playerDesc: null },
+    random:   { title: 'Random',            playerDesc: 'random' },
+    minimax1: { title: 'Minimax (depth 1)', playerDesc: 'minimax,max_depth=1' },
+    minimax2: { title: 'Minimax (depth 2)', playerDesc: 'minimax,max_depth=2' },
+    minimax3: { title: 'Minimax (depth 3)', playerDesc: 'minimax,max_depth=3' },
+    minimax4: { title: 'Minimax (depth 4)', playerDesc: 'minimax,max_depth=4' },
+};
+
+const defaultPlayerOption = 'human';
 
 function matchPartialTurn(partialTurn: readonly Action[], turn: readonly Action[]) {
     if (partialTurn.length > turn.length) return false;
@@ -24,13 +35,13 @@ function matchPartialTurn(partialTurn: readonly Action[], turn: readonly Action[
 // result is [[3], true].
 function findNextActions(
     partialTurn: readonly Action[],
-    turns: readonly Action[][]
+    turns: readonly Turn[],
 ): [Action[], boolean] {
     let isComplete = false;
     const res = new Map<number, Action>();
     for (const turn of turns) {
-        if (matchPartialTurn(partialTurn, turn)) {
-            const action = turn[partialTurn.length];
+        if (matchPartialTurn(partialTurn, turn.actions)) {
+            const action = turn.actions[partialTurn.length];
             if (action == null) {
                 isComplete = true;
             } else {
@@ -41,7 +52,7 @@ function findNextActions(
     return [Array.from(res.values()), isComplete];
 }
 
-function executePartialTurn(state: GameState, partialTurn: Action[]): GameState {
+function executePartialTurn(state: GameState, partialTurn: readonly Action[]): GameState {
     if (partialTurn.length === 0) return state;
     return state.executeActions(partialTurn);
 }
@@ -63,30 +74,82 @@ function PartialTurnComponent({enabled, turnString, onRestart, onFinish} : Parti
     )
 }
 
+type PlayerSelectPros = {
+    light: string;
+    dark: string;
+    setLight: (s: string) => void;
+    setDark:  (s: string) => void;
+}
+
+function PlayerSelectComponent({light, dark, setLight, setDark}: PlayerSelectPros) {
+    const lightSelectId = useId();
+    const darkSelectId  = useId();
+    return (
+        <div className="player-select">
+            <label htmlFor={lightSelectId}>Light player</label>
+            <label htmlFor={darkSelectId}>Dark player</label>
+            <select id={lightSelectId} value={light} onChange={e => setLight(e.target.value)}>
+                {Object.entries(playerOptions).map(([key, {title}]) =>
+                    (<option key={key} value={key}>{title}</option>))}
+            </select>
+            <select id={darkSelectId} value={dark} onChange={e => setDark(e.target.value)}>
+                {Object.entries(playerOptions).map(([key, {title}]) =>
+                    (<option key={key} value={key}>{title}</option>))}
+            </select>
+        </div>
+    );
+}
+
+type StateButtonsProps = {
+    onSave?: () => void,
+    onLoad?: () => void,
+    onUndo?: () => void,
+    onRedo?: () => void,
+};
+
+function StateButtonsComponent({onSave, onLoad, onUndo, onRedo}: StateButtonsProps) {
+    return (
+        <div className="state-buttons">
+            <button title="Save" disabled={onSave == null} onClick={onSave}>💾</button>
+            <button title="Load" disabled={onLoad == null} onClick={onLoad}>📂</button>
+            <button title="Undo" disabled={onUndo == null} onClick={onUndo}>↩️</button>
+            <button title="Redo" disabled={onRedo == null} onClick={onRedo}>↪️</button>
+        </div>
+    );
+}
+
 export default function App() {
     // Logic: for a given augmented state, we can either have a currently
     // selected turn, OR a partial turn being constructed (when it's the user's
     // turn to move), but not both.
-    const [augmentedState, setAugmentedState] = useState(() => createAugmentedState());
+    const [augmentedState, setAugmentedState] = useState(() => AugmentedState.fromInitialState());
     const [selectedTurn, setSelectedTurn] = useState<number|undefined>();
-    const [partialTurn, setPartialTurn] = useState<Action[]>([]);
+
+    // These are used to construct a turn, by first selecting a god in play,
+    // then clicking on a destination field to create a move action, etc.
+    // The details are handled by the GameComponent.
+    const [partialTurn, setPartialTurn] = useState<readonly Action[]>([]);
     const [selectedGod, setSelectedGod] = useState<GodValue|undefined>();
 
-    //const aiPlayer = ['rand', 'minimax,max_depth=2'];
-    //const aiPlayer = ['rand', 'rand'];
-    const aiPlayer = [null, 'rand'];
-    //const aiPlayer = [null, null];
+    // These set whether the light/dark players are controlled by the human user or an AI.
+    const [lightPlayer, setLightPlayer] = useState<string>(defaultPlayerOption);
+    const [darkPlayer,  setDarkPlayer]  = useState<string>(defaultPlayerOption);
+
+    const aiPlayer = [
+        playerOptions[lightPlayer].playerDesc,
+        playerOptions[darkPlayer].playerDesc,
+    ];
     const aiMoveDelayMs = 500;
 
-    const lastGameState = augmentedState.gameStates.at(-1)!;
     const nextTurns = augmentedState.nextTurns;
-    const playerDesc = aiPlayer[lastGameState.player];
+    const playerDesc = aiPlayer[augmentedState.lastGameState.player];
 
-    const userEnabled = selectedTurn == null && playerDesc == null;
+    const gameIsOver = nextTurns.length === 0;
+    const userEnabled = selectedTurn == null && playerDesc == null && !gameIsOver;
 
     const gameState =
-        userEnabled ? executePartialTurn(lastGameState, partialTurn) :
-        selectedTurn == null ? lastGameState : augmentedState.gameStates[selectedTurn];
+        userEnabled ? executePartialTurn(augmentedState.lastGameState, partialTurn) :
+        selectedTurn == null ? augmentedState.lastGameState : augmentedState.gameStates[selectedTurn];
 
     // Find next possible actions that are consistent with the current partial turn.
     const [nextActions, partialTurnIsComplete] =
@@ -102,7 +165,7 @@ export default function App() {
         setPartialTurn([]);
     }
     function finishTurn() {
-        setAugmentedState(addTurnToAugmentedState(augmentedState, partialTurn));
+        setAugmentedState(augmentedState.addTurn(new Turn(partialTurn)));
         setPartialTurn([]);
     }
 
@@ -110,21 +173,41 @@ export default function App() {
         return setSelectedGod(god === selectedGod ? undefined : god);
     }
 
+    // Note: this does not update the undo/redo stacks!
+    function changeState(newState: AugmentedState) {
+        setAugmentedState(newState);
+        setPartialTurn([]);
+        setSelectedGod(undefined);
+        setSelectedTurn(undefined);
+    }
+
+    // State button handlers.
+    const canUndo = augmentedState.history.length > 0;
+    const canRedo = false;  // TODO
+    function handleSave() {
+    }
+    function handleLoad() {
+    }
+    function handleUndo() {
+    }
+    function handleRedo() {
+    }
+
     // Play AI moves:
     useEffect(() => {
         if (playerDesc == null || nextTurns.length === 0) return;
-        const nextTurnString = lastGameState.chooseAiTurn(playerDesc);
-        if (nextTurnString == null) {
-            console.error('AI move failed! stateString:', lastGameState.toString(), 'playerDesc:', playerDesc);
+        const nextTurn = augmentedState.lastGameState.chooseAiTurn(playerDesc);
+        if (nextTurn == null) {
+            console.error('AI move failed! stateString:', augmentedState.lastGameState.toString(), 'playerDesc:', playerDesc);
             alert('AI failed!');
             return;
         }
         // Add a small delay before moving.
         const timeoutId = setTimeout(() => {
-            setAugmentedState(addTurnToAugmentedState(augmentedState, nextTurnString));
+            setAugmentedState(augmentedState.addTurn(nextTurn));
         }, aiMoveDelayMs);
         return () => clearTimeout(timeoutId);
-    }, [augmentedState]);
+    }, [playerDesc, augmentedState]);
 
     return (
         <div className="mytikas-app">
@@ -136,16 +219,28 @@ export default function App() {
                 onAction={userEnabled ? addAction : undefined}
             />
             <div className="right-panel">
-                <HistoryComponent
-                    state={augmentedState}
-                    selected={selectedTurn}
-                    setSelected={partialTurn.length === 0 ? setSelectedTurn : undefined}
+                <StateButtonsComponent
+                    onSave={handleSave}
+                    onLoad={handleLoad}
+                    onUndo={canUndo ? handleUndo : undefined}
+                    onRedo={canRedo ? handleRedo : undefined}
+                />
+                <PlayerSelectComponent
+                    light={lightPlayer}
+                    dark={darkPlayer}
+                    setLight={setLightPlayer}
+                    setDark={setDarkPlayer}
                 />
                 <PartialTurnComponent
                     enabled={userEnabled}
                     turnString={partialTurnToString(partialTurn)}
                     onRestart={userEnabled && partialTurn.length > 0 ? restartTurn : undefined}
                     onFinish={userEnabled && partialTurnIsComplete ? finishTurn : undefined}
+                />
+                <HistoryComponent
+                    state={augmentedState}
+                    selected={selectedTurn}
+                    setSelected={partialTurn.length === 0 ? setSelectedTurn : undefined}
                 />
             </div>
         </div>

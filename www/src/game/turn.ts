@@ -9,6 +9,8 @@ export const ActionType = {
 };
 export type ActionTypeValue = typeof ActionType[keyof typeof ActionType];
 
+const passString = 'x';
+
 const actionTypeNames = ['summon', 'move', 'attack', 'special'];
 const actionTypeChars = "@>!+";
 
@@ -65,21 +67,26 @@ export function parseAction(s: string): Action {
     return new Action(type, god as GodValue, fieldIndex);
 }
 
-export class Turn extends Array<Action> {
+export class Turn {
+    readonly actions: readonly Action[];
+
+    constructor(actions: readonly Action[]) {
+        this.actions = actions;  // should I copy here?
+    }
+
     toString() {
-        return partialTurnToString(this);
+        return partialTurnToString(this.actions);
     }
 }
 
-export function partialTurnToString(actions: Action[]): string {
-    return actions.length > 0 ? actions.join(',') : 'x';
+export function partialTurnToString(actions: readonly Action[]): string {
+    return actions.length === 0 ? passString : actions.join(',');
 }
 
 export function parseTurnString(s: string): Turn {
-    if (s === 'x') return [];
-    return s.split(',').map(parseAction);
+    return new Turn(s === passString ? [] : s.split(',').map(parseAction));
 }
 
-export function parseTurnStrings(turnStrings: string[]): Turn[] {
+export function parseTurnStrings(turnStrings: readonly string[]): Turn[] {
     return turnStrings.map(parseTurnString);
 }

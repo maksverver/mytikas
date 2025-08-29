@@ -80,28 +80,6 @@ export function HistoryComponent({state, selected, setSelected}: HistoryProps) {
 
     return (
         <div className="history">
-            <div className="buttons">
-                <button
-                    title="To game start"
-                    disabled={setSelected == null || !hasPrev}
-                    onClick={moveToFirst}
-                >⏮️</button>
-                <button
-                    title="Previous turn"
-                    disabled={setSelected == null || !hasPrev}
-                    onClick={moveToPrev}
-                >◀️</button>
-                <button
-                    title="Next turn"
-                    disabled={setSelected == null || !hasNext}
-                    onClick={moveToNext}
-                >▶️</button>
-                <button
-                    title="To game end"
-                    disabled={setSelected == null || !hasNext}
-                    onClick={moveToLast}
-                >⏭️</button>
-            </div>
             <div className="turn-list" ref={turnListRef}>
                 {
                     state.history.map((turn, i) =>
@@ -117,6 +95,28 @@ export function HistoryComponent({state, selected, setSelected}: HistoryProps) {
                         />
                     )
                 }
+            </div>
+            <div className="buttons">
+                <button
+                    title="To game start (home)"
+                    disabled={setSelected == null || !hasPrev}
+                    onClick={moveToFirst}
+                >⏮️</button>
+                <button
+                    title="Previous turn (left)"
+                    disabled={setSelected == null || !hasPrev}
+                    onClick={moveToPrev}
+                >◀️</button>
+                <button
+                    title="Next turn (right)"
+                    disabled={setSelected == null || !hasNext}
+                    onClick={moveToNext}
+                >▶️</button>
+                <button
+                    title="To game end (end)"
+                    disabled={setSelected == null || !hasNext}
+                    onClick={moveToLast}
+                >⏭️</button>
             </div>
         </div>
     );

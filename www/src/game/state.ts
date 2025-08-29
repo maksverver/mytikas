@@ -60,7 +60,7 @@ export class GameState {
     // Not currently implemented:
     // function executeAction(stateString: string, actionString: string): string|undefined;
 
-    executeActions(partialTurn: Action[]): GameState {
+    executeActions(partialTurn: readonly Action[]): GameState {
         const newStateString = wasmApi.executeActions(this.toString(), partialTurnToString(partialTurn));
         if (newStateString == null) {
             console.error('Failed to execute partial turn:', this, partialTurn);

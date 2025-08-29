@@ -6,13 +6,14 @@
     overflow: hidden;
 }
 
-.history .buttons {
+/* Try to keep button styling in sync with buttons defined in App.css */
+.state-buttons {
     display: flex;
     flex-direction: row;
     gap: 4px;
 }
 
-.history .buttons button {
+.state-buttons button {
     flex: 1;
     font-size: 14pt;
     padding: 8px;
@@ -20,7 +21,7 @@
     background: #ccc;
 }
 
-.history .buttons button:disabled {
+.state-buttons button:disabled {
     opacity: 50%;
     background: #888;
 }
