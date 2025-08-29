@@ -4,7 +4,14 @@
 import { GameState } from "./game/state";
 import { type Turn } from "./game/turn";
 
+export type UndoState = {
+    readonly turn: Turn;
+    readonly gameState: GameState;
+    // nextTurns will be recalculated
+};
+
 export class AugmentedState {
+
     // All game states in order; contains at least 1 element (the initial state).
     readonly gameStates: readonly GameState[];
 
@@ -45,5 +52,32 @@ export class AugmentedState {
             [...this.gameStates, nextGameState],
             [...this.history, turn],
             nextGameState.generateTurns());
+    }
+
+    canUndo(): boolean {
+        return this.gameStates.length > 1;
+    }
+
+    undoTurn(): [AugmentedState, UndoState] {
+        if (!this.canUndo()) {
+            throw new Error('Cannot undo from initial state!');
+        }
+        return [
+            new AugmentedState(
+                this.gameStates.slice(0, -1),
+                this.history.slice(0, -1),
+                this.gameStates.at(-2)!.generateTurns()),
+            {
+                turn: this.history.at(-1)!,
+                gameState: this.gameStates.at(-1)!
+            }
+        ];
+    }
+
+    redoTurn(undoState: UndoState): AugmentedState {
+        return new AugmentedState(
+            [...this.gameStates, undoState.gameState],
+            [...this.history, undoState.turn],
+            undoState.gameState.generateTurns());
     }
 };

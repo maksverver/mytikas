@@ -3,7 +3,7 @@ import './App.css'
 import { useEffect, useId, useState } from 'react';
 import GameComponent from './GameComponent.tsx';
 import { HistoryComponent } from './HistoryComponent.tsx';
-import { AugmentedState } from './AugmentedState.ts';
+import { AugmentedState, type UndoState } from './AugmentedState.ts';
 import { Action, partialTurnToString, Turn } from './game/turn.ts';
 import { GameState } from './game/state.ts';
 import type { GodValue } from './game/gods.ts';
@@ -148,6 +148,8 @@ export default function App() {
     const [lightPlayer, setLightPlayer] = useState<string>(defaultPlayerOption);
     const [darkPlayer,  setDarkPlayer]  = useState<string>(defaultPlayerOption);
 
+    const [redoStack, setRedoStack] = useState<UndoState[]>([]);
+
     const aiPlayer = [
         playerOptions[lightPlayer].playerDesc,
         playerOptions[darkPlayer].playerDesc,
@@ -178,7 +180,7 @@ export default function App() {
         setPartialTurn([]);
     }
     function finishTurn() {
-        setAugmentedState(augmentedState.addTurn(new Turn(partialTurn)));
+        executeTurn(new Turn(partialTurn));
         setPartialTurn([]);
     }
 
@@ -186,7 +188,7 @@ export default function App() {
         return setSelectedGod(god === selectedGod ? undefined : god);
     }
 
-    // Note: this does not update the undo/redo stacks!
+    // Note: this does not update the redo stack!
     function changeState(newState: AugmentedState) {
         setAugmentedState(newState);
         setPartialTurn([]);
@@ -194,16 +196,45 @@ export default function App() {
         setSelectedTurn(undefined);
     }
 
+    function executeTurn(turn: Turn) {
+        changeState(augmentedState.addTurn(turn));
+        setRedoStack([]);
+    }
+
     // State button handlers.
-    const canUndo = augmentedState.history.length > 0;
-    const canRedo = false;  // TODO
+
+    // For undoing/redoing, we move to the previous/next state where it was the
+    // user's turn to move, otherwise the AI would just immediately move again.
+    const canUndo = augmentedState.gameStates.some(s => aiPlayer[s.player] == null);
+    const canRedo = redoStack.some(s => aiPlayer[s.gameState.player] == null);
+
+    function handleUndo() {
+        let newAugmentedState = augmentedState;
+        let newRedoStack = Array.from(redoStack);
+        let undoState: UndoState;
+        while (newAugmentedState.canUndo) {
+            [newAugmentedState, undoState] = newAugmentedState.undoTurn();
+            newRedoStack.push(undoState);
+            if (aiPlayer[newAugmentedState.lastGameState.player] == null) break;
+        }
+        changeState(newAugmentedState);
+        setRedoStack(newRedoStack);
+    }
+
+    function handleRedo() {
+        let newAugmentedState = augmentedState;
+        let newRedoStack = Array.from(redoStack);
+        while (newRedoStack.length > 0) {
+            newAugmentedState = newAugmentedState.redoTurn(newRedoStack.pop()!);
+            if (aiPlayer[newAugmentedState.lastGameState.player] == null) break;
+        }
+        changeState(newAugmentedState);
+        setRedoStack(newRedoStack);
+    }
+
     function handleSave() {
     }
     function handleLoad() {
-    }
-    function handleUndo() {
-    }
-    function handleRedo() {
     }
 
     // Play AI moves:
@@ -217,7 +248,7 @@ export default function App() {
         }
         // Add a small delay before moving.
         const timeoutId = setTimeout(() => {
-            setAugmentedState(augmentedState.addTurn(nextTurn));
+            executeTurn(nextTurn);
         }, aiMoveDelayMs);
         return () => clearTimeout(timeoutId);
     }, [playerDesc, augmentedState]);
