@@ -3,11 +3,38 @@ import './App.css'
 import { useEffect, useId, useRef, useState } from 'react';
 import GameComponent from './GameComponent.tsx';
 import { HistoryComponent } from './HistoryComponent.tsx';
-import { AugmentedState, type UndoState as RedoState } from './AugmentedState.ts';
-import { Action, partialTurnToString, Turn } from './game/turn.ts';
+import { AugmentedState, type RedoState } from './AugmentedState.ts';
+import { Action, formatTurnHistory, parseTurnHistory, partialTurnToString, Turn } from './game/turn.ts';
 import { decodeStateString, GameState } from './game/state.ts';
 import type { GodValue } from './game/gods.ts';
 import { classNames } from './utils.ts';
+
+// Attempts to parse the given string as either a game state string, or
+// a full turn history string, as shown in the save dialog.
+function parseAgumentedState(s: string): AugmentedState|undefined {
+    console.info('Parsing game state from string', s);
+
+    try {
+        const turns = parseTurnHistory(s);
+        if (turns != null) {
+            return AugmentedState.fromTurnHistory(turns);
+        }
+    } catch (w) {
+        console.info('Could not parse string as full turn history', w);
+    }
+
+    try {
+        let gameState: GameState = decodeStateString(s);
+        if (gameState != null) {
+            return AugmentedState.fromGameState(gameState);
+        }
+    } catch (w) {
+        console.info('Could not parse string as game state', w);
+    }
+
+    // Wasn't able to parse the string in any way.
+    return undefined;
+}
 
 const playerOptions: Record<string, {title: string, playerDesc: string|null}> = {
     human:    { title: 'Human',             playerDesc: null },
@@ -243,18 +270,15 @@ export default function App() {
     }
 
     function handleLoad() {
-        let result = prompt("Enter game state or move history");
-        if (result == null) return;  // dialog closed
-        result = result.replace(/\s/g,'');  // strip whitespace
-
-        // Try to parse as state string
-        {
-            let gameState: GameState = decodeStateString(result);
-            if (gameState != null) {
-                changeState(AugmentedState.fromGameState(gameState));
-                return;
-            }
+        let s = prompt("Enter game state or move history");
+        if (s == null) return;  // dialog closed
+        s = s.replace(/\s+/g,'');  // strip whitespace
+        const newAugmentedState = parseAgumentedState(s);
+        if (newAugmentedState == null) {
+            alert('Failed to parse game state string! (See Javascript log for details.)');
+            return;
         }
+        changeState(newAugmentedState);
     }
 
     // Open/close save dialog
@@ -281,6 +305,10 @@ export default function App() {
         }, aiMoveDelayMs);
         return () => clearTimeout(timeoutId);
     }, [playerDesc, augmentedState]);
+
+    const gameStateString = augmentedState.lastGameState.toString();
+    const turnHistoryString = formatTurnHistory(augmentedState.history);
+    const compactTurnHistoryString = 'TODO';
 
     return (
         <div className="mytikas-app">
@@ -322,17 +350,17 @@ export default function App() {
                         <h1>Save state</h1>
                         <h2>Final game state</h2>
                         <div>
-                            <span className="code">{augmentedState.lastGameState.toString()}</span>
+                            <span className="code">{gameStateString}</span>
                         </div>
                     {/*
                         <h2>Compact turn history</h2>
                         <div>
-                            <span className="code">{augmentedState.history.join(';')}</span>
+                            <span className="code">{compactTurnHistoryString}</span>
                         </div>
                     */}
                         <h2>Full turn history</h2>
                         <div>
-                            <span className="code">{augmentedState.history.join(';')}</span>
+                            <span className="code">{turnHistoryString}</span>
                         </div>
                     </div>
                 </dialog>

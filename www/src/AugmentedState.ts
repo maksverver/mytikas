@@ -35,15 +35,37 @@ export class AugmentedState {
     ) {
         this.gameStates = gameStates;
         this.history = history;
-        this.nextTurns = nextTurns;;
+        this.nextTurns = nextTurns;
     }
 
+    // Creates an augmented game state from the default initial state.
+    static fromInitialState() {
+        return this.fromGameState(GameState.initial());
+    }
+
+    // Creates an augmented game state from the given state with no history.
+    // The given state MUST be valid; this function does not validate it.
     static fromGameState(state: GameState) {
         return new AugmentedState([state], [], state.generateTurns());
     }
 
-    static fromInitialState() {
-        return this.fromGameState(GameState.initial());
+    // Reconstructs the game state history from the given list of turns.
+    // The initial state (if given) MUST be valid. Turns are validated one
+    // by one and an exception is thrown if any turn is invalid.
+    static fromTurnHistory(turns: readonly Turn[], gameState: GameState = GameState.initial()): AugmentedState {
+        const gameStates = [gameState];
+        const history = [];
+        for (const turn of turns) {
+            const validTurns = gameState.generateTurns();
+            const validTurn = validTurns.find(validTurn => validTurn.equals(turn));
+            if (validTurn == null) {
+                throw new Error(`Given turn (${turn}) does not match any valid turn (${validTurns})`);
+            }
+            gameState = gameState.executeTurn(validTurn);
+            gameStates.push(gameState);
+            history.push(validTurn);
+        }
+        return new AugmentedState(gameStates, history, gameState.generateTurns());
     }
 
     addTurn(turn: Turn): AugmentedState {

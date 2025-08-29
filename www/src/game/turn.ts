@@ -74,6 +74,11 @@ export class Turn {
         this.actions = actions;  // should I copy here?
     }
 
+    equals(that: Turn) {
+        return this.actions.length === that.actions.length &&
+            this.actions.every((action, i) => action.equals(that.actions[i]));
+    }
+
     toString() {
         return partialTurnToString(this.actions);
     }
@@ -89,4 +94,12 @@ export function parseTurnString(s: string): Turn {
 
 export function parseTurnStrings(turnStrings: readonly string[]): Turn[] {
     return turnStrings.map(parseTurnString);
+}
+
+export function formatTurnHistory(turns: readonly Turn[]) {
+    return turns.join(';');
+}
+
+export function parseTurnHistory(s: string): Turn[] {
+    return s.split(';').map(parseTurnString);
 }
