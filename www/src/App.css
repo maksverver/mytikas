@@ -11,10 +11,30 @@
     gap: 20px;
 }
 
+/* Try to keep button styling in sync with buttons defined in HistoryComponent.css */
+.right-panel button {
+    flex: 1;
+    font-size: 14pt;
+    padding: 8px;
+    border-color: #ddd;
+    background: #ccc;
+}
+
+.right-panel button:disabled {
+    opacity: 50%;
+    background: #888;
+}
+
 .partial-turn {
     display: flex;
     flex-direction: row;
     align-items: center;
+}
+
+/* Order matters here, because this overrides .right-panel button */
+.partial-turn button {
+    padding: 8px 16px;
+    flex-grow: 0;
 }
 
 .partial-turn .turn-string {
@@ -40,20 +60,7 @@
 
 .partial-turn button.flash {
     background: #ccf;
-    animation: button-flash-animation 2s ease 4s infinite;
-}
-
-.right-panel button {
-    flex: 1;
-    font-size: 14pt;
-    padding: 8px;
-    border-color: #ddd;
-    background: #ccc;
-}
-
-.right-panel button:disabled {
-    opacity: 50%;
-    background: #888;
+    animation: button-flash-animation 2s ease 2s infinite;
 }
 
 .player-select {
@@ -72,14 +79,13 @@
     background: #ddd;
 }
 
-/* Try to keep button styling in sync with buttons defined in HistoryComponent.css */
-.history .buttons {
+.state-buttons {
     display: flex;
     flex-direction: row;
     gap: 4px;
 }
 
-.history .buttons button {
+.state-buttons button {
     flex: 1;
     font-size: 14pt;
     padding: 8px;
@@ -87,7 +93,55 @@
     background: #ccc;
 }
 
-.history .buttons button:disabled {
+.state-buttons button:disabled {
     opacity: 50%;
     background: #888;
+}
+
+.save-dialog {
+    background: #eee;
+    border: 2px solid #666;
+    padding: 0;
+    border-radius: 20px;
+    box-shadow: 25px 25px 50px #888;
+}
+
+.save-dialog .close {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    cursor: pointer;
+    background: yellow;
+    min-width:  40px;
+    min-height: 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #ddd;
+}
+
+.save-dialog .close:hover {
+    background: #ccc;
+}
+
+.save-dialog .content {
+    min-width: 400px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+.save-dialog .content h1 {
+    margin-top: 0;
+}
+
+.save-dialog .code {
+    font: 16px monospace;
+    overflow: wrap;
+    overflow-wrap: anywhere;
+}
+
+.save-dialog .buttons {
+    margin-top: 20px;
+    text-align: center;
 }

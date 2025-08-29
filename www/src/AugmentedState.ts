@@ -4,7 +4,7 @@
 import { GameState } from "./game/state";
 import { type Turn } from "./game/turn";
 
-export type UndoState = {
+export type RedoState = {
     readonly turn: Turn;
     readonly gameState: GameState;
     // nextTurns will be recalculated
@@ -58,7 +58,7 @@ export class AugmentedState {
         return this.gameStates.length > 1;
     }
 
-    undoTurn(): [AugmentedState, UndoState] {
+    undoTurn(): [AugmentedState, RedoState] {
         if (!this.canUndo()) {
             throw new Error('Cannot undo from initial state!');
         }
@@ -74,7 +74,7 @@ export class AugmentedState {
         ];
     }
 
-    redoTurn(undoState: UndoState): AugmentedState {
+    redoTurn(undoState: RedoState): AugmentedState {
         return new AugmentedState(
             [...this.gameStates, undoState.gameState],
             [...this.history, undoState.turn],

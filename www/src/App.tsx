@@ -1,11 +1,11 @@
 import './App.css'
 
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import GameComponent from './GameComponent.tsx';
 import { HistoryComponent } from './HistoryComponent.tsx';
-import { AugmentedState, type UndoState } from './AugmentedState.ts';
+import { AugmentedState, type UndoState as RedoState } from './AugmentedState.ts';
 import { Action, partialTurnToString, Turn } from './game/turn.ts';
-import { GameState } from './game/state.ts';
+import { decodeStateString, GameState } from './game/state.ts';
 import type { GodValue } from './game/gods.ts';
 import { classNames } from './utils.ts';
 
@@ -63,10 +63,10 @@ type PartialTurnProps = {
     turnString: string;
     onRestart?: () => void,
     onFinish?: () => void,
-    moreActionsAvailable: boolean;
+    finishHint: boolean;
 };
 
-function PartialTurnComponent({enabled, turnString, onRestart, onFinish, moreActionsAvailable} : PartialTurnProps) {
+function PartialTurnComponent({enabled, turnString, onRestart, onFinish, finishHint} : PartialTurnProps) {
     return (
         <div className="partial-turn">
             <button
@@ -78,7 +78,7 @@ function PartialTurnComponent({enabled, turnString, onRestart, onFinish, moreAct
                 className="turn-string"
             >{enabled ? turnString : '\u00A0'}</div>
             <button
-                className={classNames({flash: !moreActionsAvailable})}
+                className={classNames({flash: finishHint})}
                 disabled={onFinish == null}
                 onClick={onFinish}
                 title="Finish"
@@ -148,7 +148,10 @@ export default function App() {
     const [lightPlayer, setLightPlayer] = useState<string>(defaultPlayerOption);
     const [darkPlayer,  setDarkPlayer]  = useState<string>(defaultPlayerOption);
 
-    const [redoStack, setRedoStack] = useState<UndoState[]>([]);
+    const [redoStack, setRedoStack] = useState<RedoState[]>([]);
+
+    const [showSaveDialog, setShowSaveDialog] = useState<boolean>(false);
+    const saveDialogRef = useRef<HTMLDialogElement>(null);
 
     const aiPlayer = [
         playerOptions[lightPlayer].playerDesc,
@@ -172,6 +175,24 @@ export default function App() {
             ? findNextActions(partialTurn, nextTurns)
             : [[], false];
 
+
+    function changeState(newAugmentedState: AugmentedState, newRedoStack: RedoState[] = []) {
+        setAugmentedState(newAugmentedState);
+        setPartialTurn([]);
+        setSelectedGod(undefined);
+        setSelectedTurn(undefined);
+        setRedoStack(newRedoStack);
+    }
+
+    function executeTurn(turn: Turn) {
+        changeState(augmentedState.addTurn(turn));
+    }
+
+    function handleSelect(god: GodValue | undefined) {
+        return setSelectedGod(god === selectedGod ? undefined : god);
+    }
+
+    // State button handlers.
     function addAction(action: Action) {
         setPartialTurn([...partialTurn, action]);
         setSelectedGod(undefined);
@@ -184,25 +205,6 @@ export default function App() {
         setPartialTurn([]);
     }
 
-    function handleSelect(god: GodValue | undefined) {
-        return setSelectedGod(god === selectedGod ? undefined : god);
-    }
-
-    // Note: this does not update the redo stack!
-    function changeState(newState: AugmentedState) {
-        setAugmentedState(newState);
-        setPartialTurn([]);
-        setSelectedGod(undefined);
-        setSelectedTurn(undefined);
-    }
-
-    function executeTurn(turn: Turn) {
-        changeState(augmentedState.addTurn(turn));
-        setRedoStack([]);
-    }
-
-    // State button handlers.
-
     // For undoing/redoing, we move to the previous/next state where it was the
     // user's turn to move, otherwise the AI would just immediately move again.
     const canUndo = augmentedState.gameStates.some(s => aiPlayer[s.player] == null);
@@ -211,10 +213,10 @@ export default function App() {
     function handleUndo() {
         let newAugmentedState = augmentedState;
         let newRedoStack = Array.from(redoStack);
-        let undoState: UndoState;
+        let redoState: RedoState;
         while (newAugmentedState.canUndo) {
-            [newAugmentedState, undoState] = newAugmentedState.undoTurn();
-            newRedoStack.push(undoState);
+            [newAugmentedState, redoState] = newAugmentedState.undoTurn();
+            newRedoStack.push(redoState);
             if (aiPlayer[newAugmentedState.lastGameState.player] == null) break;
         }
         changeState(newAugmentedState);
@@ -233,9 +235,36 @@ export default function App() {
     }
 
     function handleSave() {
+        setShowSaveDialog(true);
     }
+
+    function hideSaveDialog() {
+        setShowSaveDialog(false);
+    }
+
     function handleLoad() {
+        let result = prompt("Enter game state or move history");
+        if (result == null) return;  // dialog closed
+        result = result.replace(/\s/g,'');  // strip whitespace
+
+        // Try to parse as state string
+        {
+            let gameState: GameState = decodeStateString(result);
+            if (gameState != null) {
+                changeState(AugmentedState.fromGameState(gameState));
+                return;
+            }
+        }
     }
+
+    // Open/close save dialog
+    useEffect(() => {
+        if (!saveDialogRef.current?.open && showSaveDialog) {
+            saveDialogRef.current!.showModal()
+        } else if (saveDialogRef.current?.open && !showSaveDialog) {
+            saveDialogRef.current!.close();
+        }
+    }, [showSaveDialog]);
 
     // Play AI moves:
     useEffect(() => {
@@ -280,13 +309,33 @@ export default function App() {
                     turnString={partialTurnToString(partialTurn)}
                     onRestart={userEnabled && partialTurn.length > 0 ? restartTurn : undefined}
                     onFinish={userEnabled && partialTurnIsComplete ? finishTurn : undefined}
-                    moreActionsAvailable={nextActions.length > 0}
+                    finishHint={userEnabled && nextActions.length === 0}
                 />
                 <HistoryComponent
                     state={augmentedState}
                     selected={selectedTurn}
                     setSelected={partialTurn.length === 0 ? setSelectedTurn : undefined}
                 />
+                <dialog className="save-dialog" ref={saveDialogRef} onClick={hideSaveDialog}>
+                    <div className="content" onClick={e => e.stopPropagation()}>
+                        <div className="close" onClick={hideSaveDialog}>✖</div>
+                        <h1>Save state</h1>
+                        <h2>Final game state</h2>
+                        <div>
+                            <span className="code">{augmentedState.lastGameState.toString()}</span>
+                        </div>
+                    {/*
+                        <h2>Compact turn history</h2>
+                        <div>
+                            <span className="code">{augmentedState.history.join(';')}</span>
+                        </div>
+                    */}
+                        <h2>Full turn history</h2>
+                        <div>
+                            <span className="code">{augmentedState.history.join(';')}</span>
+                        </div>
+                    </div>
+                </dialog>
             </div>
         </div>
     );
