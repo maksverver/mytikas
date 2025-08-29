@@ -7,6 +7,7 @@ import { AugmentedState } from './AugmentedState.ts';
 import { Action, partialTurnToString, Turn } from './game/turn.ts';
 import { GameState } from './game/state.ts';
 import type { GodValue } from './game/gods.ts';
+import { classNames } from './utils.ts';
 
 const playerOptions: Record<string, {title: string, playerDesc: string|null}> = {
     human:    { title: 'Human',             playerDesc: null },
@@ -62,14 +63,26 @@ type PartialTurnProps = {
     turnString: string;
     onRestart?: () => void,
     onFinish?: () => void,
+    moreActionsAvailable: boolean;
 };
 
-function PartialTurnComponent({enabled, turnString, onRestart, onFinish} : PartialTurnProps) {
+function PartialTurnComponent({enabled, turnString, onRestart, onFinish, moreActionsAvailable} : PartialTurnProps) {
     return (
         <div className="partial-turn">
-            <button disabled={onRestart == null} onClick={onRestart} title="Restart">⟲</button>
-            <div className="turn-string">{enabled ? turnString : '\u00A0'}</div>
-            <button disabled={onFinish == null} onClick={onFinish} title="Finish">✓</button>
+            <button
+                disabled={onRestart == null}
+                onClick={onRestart}
+                title="Restart"
+            >⟲</button>
+            <div
+                className="turn-string"
+            >{enabled ? turnString : '\u00A0'}</div>
+            <button
+                className={classNames({flash: !moreActionsAvailable})}
+                disabled={onFinish == null}
+                onClick={onFinish}
+                title="Finish"
+            >✓</button>
         </div>
     )
 }
@@ -236,6 +249,7 @@ export default function App() {
                     turnString={partialTurnToString(partialTurn)}
                     onRestart={userEnabled && partialTurn.length > 0 ? restartTurn : undefined}
                     onFinish={userEnabled && partialTurnIsComplete ? finishTurn : undefined}
+                    moreActionsAvailable={nextActions.length > 0}
                 />
                 <HistoryComponent
                     state={augmentedState}

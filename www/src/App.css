@@ -25,6 +25,24 @@
     white-space: pre;
 }
 
+@keyframes button-flash-animation {
+  40%,
+  60% {
+    scale: 100%;
+    background: #ccf;
+  }
+
+  50% {
+    scale: 125%;
+    background: #ddf;
+  }
+}
+
+.partial-turn button.flash {
+    background: #ccf;
+    animation: button-flash-animation 2s ease 4s infinite;
+}
+
 .right-panel button {
     flex: 1;
     font-size: 14pt;
