@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import GameComponent from './GameComponent.tsx';
 import { HistoryComponent } from './HistoryComponent.tsx';
 import { AugmentedState, type RedoState } from './AugmentedState.ts';
-import { Action, formatTurnHistory, parseTurnHistory, partialTurnToString, Turn } from './game/turn.ts';
+import { Action, formatCompactTurnHistory, formatTurnHistory, parseCompactTurnHistory, parseTurnHistory, partialTurnToString, Turn } from './game/turn.ts';
 import { decodeStateString, GameState } from './game/state.ts';
 import type { GodValue } from './game/gods.ts';
 import { classNames } from './utils.ts';
@@ -12,15 +12,24 @@ import { classNames } from './utils.ts';
 // Attempts to parse the given string as either a game state string, or
 // a full turn history string, as shown in the save dialog.
 function parseAgumentedState(s: string): AugmentedState|undefined {
-    console.info('Parsing game state from string', s);
+    let e1, e2, e3;
 
     try {
         const turns = parseTurnHistory(s);
         if (turns != null) {
             return AugmentedState.fromTurnHistory(turns);
         }
-    } catch (w) {
-        console.info('Could not parse string as full turn history', w);
+    } catch (e) {
+        e1 = e;
+    }
+
+    try {
+        const turns = parseCompactTurnHistory(s);
+        if (turns != null) {
+            return AugmentedState.fromTurnHistory(turns);
+        }
+    } catch (e) {
+        e2 = e;
     }
 
     try {
@@ -28,11 +37,15 @@ function parseAgumentedState(s: string): AugmentedState|undefined {
         if (gameState != null) {
             return AugmentedState.fromGameState(gameState);
         }
-    } catch (w) {
-        console.info('Could not parse string as game state', w);
+    } catch (e) {
+        e3 = e;
     }
 
     // Wasn't able to parse the string in any way.
+    console.info('Tried to parse game state from string', s);
+    console.info('Could not parse string as verbose turn history', e1);
+    console.info('Could not parse string as compact turn history', e2);
+    console.info('Could not parse string as game state', e3);
     return undefined;
 }
 
@@ -308,7 +321,7 @@ export default function App() {
 
     const gameStateString = augmentedState.lastGameState.toString();
     const turnHistoryString = formatTurnHistory(augmentedState.history);
-    const compactTurnHistoryString = 'TODO';
+    const compactTurnHistoryString = formatCompactTurnHistory(augmentedState.history);
 
     return (
         <div className="mytikas-app">
@@ -352,13 +365,11 @@ export default function App() {
                         <div>
                             <span className="code">{gameStateString}</span>
                         </div>
-                    {/*
                         <h2>Compact turn history</h2>
                         <div>
                             <span className="code">{compactTurnHistoryString}</span>
                         </div>
-                    */}
-                        <h2>Full turn history</h2>
+                        <h2>Verbose turn history</h2>
                         <div>
                             <span className="code">{turnHistoryString}</span>
                         </div>

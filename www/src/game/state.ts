@@ -8,8 +8,7 @@ import { God, godCount, pantheon, StatusEffects, type GodValue } from "./gods";
 import { other, type PlayerValue } from "./player";
 import { Action, parseTurnString, parseTurnStrings, partialTurnToString, Turn } from "./turn.ts";
 import * as wasmApi from '../wasm-api.ts';
-
-const base64Digits = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+import { base64Digits } from "./encoding.ts";
 
 export type ReservedGodState = {
     state:   'reserved',  // not yet available
