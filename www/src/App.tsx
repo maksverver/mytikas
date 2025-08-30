@@ -1,6 +1,6 @@
 import './App.css'
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import GameComponent from './GameComponent.tsx';
 import { HistoryComponent } from './HistoryComponent.tsx';
 import { AugmentedState, type RedoState } from './AugmentedState.ts';
@@ -188,6 +188,44 @@ function CopyableStringComponent({desc, text}: {desc: string, text: string}) {
     );
 }
 
+type SaveStateProps = {
+    visible: boolean,
+    augmentedState: AugmentedState,
+    onClose?: () => void,
+};
+
+function SaveStateComponent({visible, augmentedState, onClose}: SaveStateProps) {
+    const dialogRef = useRef<HTMLDialogElement>(null);
+
+    // Open/close save dialog
+    useEffect(() => {
+        if (!dialogRef.current?.open && visible) {
+            dialogRef.current!.showModal()
+        } else if (dialogRef.current?.open && !visible) {
+            dialogRef.current!.close();
+        }
+    }, [visible]);
+
+    const gameStateString = augmentedState.lastGameState.toString();
+    const turnHistoryString = formatTurnHistory(augmentedState.history);
+    const compactTurnHistoryString = formatCompactTurnHistory(augmentedState.history);
+
+    return (
+        <dialog className="save-dialog" ref={dialogRef} onClick={onClose}>
+            <div className="content" onClick={e => e.stopPropagation()}>
+                <div className="close" onClick={onClose}>✖</div>
+                <h1>Save state</h1>
+                <h2>Final game state</h2>
+                <CopyableStringComponent desc="final game state" text={gameStateString}/>
+                <h2>Compact turn history</h2>
+                <CopyableStringComponent desc="compact turn history" text={compactTurnHistoryString}/>
+                <h2>Verbose turn history</h2>
+                <CopyableStringComponent desc="verbose turn history" text={turnHistoryString}/>
+            </div>
+        </dialog>
+    );
+}
+
 export default function App() {
     // Logic: for a given augmented state, we can either have a currently
     // selected turn, OR a partial turn being constructed (when it's the user's
@@ -207,8 +245,10 @@ export default function App() {
 
     const [redoStack, setRedoStack] = useState<RedoState[]>([]);
 
-    const [showSaveDialog, setShowSaveDialog] = useState<boolean>(false);
-    const saveDialogRef = useRef<HTMLDialogElement>(null);
+    const [saveDialogVisible, setSaveDialogVisible] = useState<boolean>(false);
+
+    const showSaveDialog = useCallback(() => setSaveDialogVisible(true), []);
+    const hideSaveDialog = useCallback(() => setSaveDialogVisible(false), []);
 
     const aiPlayer = [
         playerOptions[lightPlayer].playerDesc,
@@ -291,14 +331,6 @@ export default function App() {
         setRedoStack(newRedoStack);
     }
 
-    function handleSave() {
-        setShowSaveDialog(true);
-    }
-
-    function hideSaveDialog() {
-        setShowSaveDialog(false);
-    }
-
     function handleLoad() {
         let s = prompt("Enter game state or move history");
         if (s == null) return;  // dialog closed
@@ -311,15 +343,6 @@ export default function App() {
         }
         changeState(newAugmentedState);
     }
-
-    // Open/close save dialog
-    useEffect(() => {
-        if (!saveDialogRef.current?.open && showSaveDialog) {
-            saveDialogRef.current!.showModal()
-        } else if (saveDialogRef.current?.open && !showSaveDialog) {
-            saveDialogRef.current!.close();
-        }
-    }, [showSaveDialog]);
 
     // Play AI moves:
     useEffect(() => {
@@ -337,10 +360,6 @@ export default function App() {
         return () => clearTimeout(timeoutId);
     }, [playerDesc, augmentedState]);
 
-    const gameStateString = augmentedState.lastGameState.toString();
-    const turnHistoryString = formatTurnHistory(augmentedState.history);
-    const compactTurnHistoryString = formatCompactTurnHistory(augmentedState.history);
-
     return (
         <div className="mytikas-app">
             <GameComponent
@@ -352,7 +371,7 @@ export default function App() {
             />
             <div className="right-panel">
                 <StateButtonsComponent
-                    onSave={handleSave}
+                    onSave={showSaveDialog}
                     onLoad={handleLoad}
                     onUndo={canUndo ? handleUndo : undefined}
                     onRedo={canRedo ? handleRedo : undefined}
@@ -375,18 +394,11 @@ export default function App() {
                     selected={selectedTurn}
                     setSelected={partialTurn.length === 0 ? setSelectedTurn : undefined}
                 />
-                <dialog className="save-dialog" ref={saveDialogRef} onClick={hideSaveDialog}>
-                    <div className="content" onClick={e => e.stopPropagation()}>
-                        <div className="close" onClick={hideSaveDialog}>✖</div>
-                        <h1>Save state</h1>
-                        <h2>Final game state</h2>
-                        <CopyableStringComponent desc="final game state" text={gameStateString}/>
-                        <h2>Compact turn history</h2>
-                        <CopyableStringComponent desc="compact turn history" text={compactTurnHistoryString}/>
-                        <h2>Verbose turn history</h2>
-                        <CopyableStringComponent desc="verbose turn history" text={turnHistoryString}/>
-                    </div>
-                </dialog>
+                <SaveStateComponent
+                    augmentedState={augmentedState}
+                    visible={saveDialogVisible}
+                    onClose={hideSaveDialog}
+                />
             </div>
         </div>
     );

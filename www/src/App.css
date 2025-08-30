@@ -143,6 +143,7 @@
 .copyable-string {
     display: flex;
     flex-direction: row;
+    align-items: center;
     gap: 8px;
 }
 
@@ -155,6 +156,5 @@
 
 .copyable-string .code {
     font: 16px monospace;
-    overflow: wrap;
     overflow-wrap: anywhere;
 }
