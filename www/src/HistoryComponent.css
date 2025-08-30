@@ -1,18 +1,36 @@
 .history {
-    flex-grow: 1;
+    position: absolute;
+    min-width: 350px;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    background: #ccc;
+    box-shadow: -20px 0 20px #888;
+    border-left: 1px solid #888;
+    overflow: hidden;
+}
+
+.history .content {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    overflow: hidden;
+    max-height: 100%;
 }
 
 /* Try to keep button styling in sync with buttons defined in App.css */
 .history .buttons {
+    padding-top: 4px;
     display: flex;
     flex-direction: row;
     gap: 4px;
 }
 
+/* Inherit default button styling */
+/*
 .history .buttons button {
     flex: 1;
     font-size: 14pt;
@@ -25,12 +43,11 @@
     opacity: 50%;
     background: #888;
 }
+*/
 
 .history .turn-list {
-    display: flex;
-    flex-direction: column;
+    flex-grow: 1;
     overflow-y: auto;
-    max-height: 100%;
 }
 
 /* Keep consistent with .partial-turn .turn-string */

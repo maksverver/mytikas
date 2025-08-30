@@ -158,21 +158,28 @@ type StateButtonsProps = {
     onLoad?: () => void,
     onUndo?: () => void,
     onRedo?: () => void,
+    onHistory?: () => void,
 };
 
-function StateButtonsComponent({onSave, onLoad, onUndo, onRedo}: StateButtonsProps) {
+function StateButtonsComponent({onSave, onLoad, onUndo, onRedo, onHistory}: StateButtonsProps) {
     return (
         <div className="state-buttons">
             <button title="Save" disabled={onSave == null} onClick={onSave}>💾</button>
             <button title="Load" disabled={onLoad == null} onClick={onLoad}>📂</button>
             <button title="Undo" disabled={onUndo == null} onClick={onUndo}>↩️</button>
             <button title="Redo" disabled={onRedo == null} onClick={onRedo}>↪️</button>
+            <button title="History" disabled={onHistory == null} onClick={onHistory}>📜</button>
         </div>
     );
 }
 
 function CopyableStringComponent({desc, text}: {desc: string, text: string}) {
-    const handleClick = () =>
+    const handleClick = () => {
+        if (!navigator.clipboard) {
+            alert(`Error: could not copy ${desc} to clipboard!
+
+navigator.clipboard is not defined; this may happen when running outside a secure context.`);
+        }
         navigator.clipboard.writeText(text)
             .then(() => {
                 alert(`Copied ${desc} to clipboard.`);
@@ -180,6 +187,7 @@ function CopyableStringComponent({desc, text}: {desc: string, text: string}) {
             .catch((e) => {
                 alert(`Error: could not copy ${desc} to clipboard!\n\n${e}`);
             });
+    }
     return (
         <div className="copyable-string">
             <span className="copy" title="Copy to clipboard" onClick={handleClick}>📋</span>
@@ -213,7 +221,7 @@ function SaveStateComponent({visible, augmentedState, onClose}: SaveStateProps) 
     return (
         <dialog className="save-dialog" ref={dialogRef} onClick={onClose}>
             <div className="content" onClick={e => e.stopPropagation()}>
-                <div className="close" onClick={onClose}>✖</div>
+                <div className="close" onClick={onClose}>×</div>
                 <h1>Save state</h1>
                 <h2>Final game state</h2>
                 <CopyableStringComponent desc="final game state" text={gameStateString}/>
@@ -246,9 +254,13 @@ export default function App() {
     const [redoStack, setRedoStack] = useState<RedoState[]>([]);
 
     const [saveDialogVisible, setSaveDialogVisible] = useState<boolean>(false);
-
     const showSaveDialog = useCallback(() => setSaveDialogVisible(true), []);
     const hideSaveDialog = useCallback(() => setSaveDialogVisible(false), []);
+
+    const [historyVisible, setHistoryVisible] = useState<boolean>(false);
+    const showHistory = useCallback(() => setHistoryVisible(true), []);
+    const hideHistory = useCallback(() => setHistoryVisible(false), []);
+
 
     const aiPlayer = [
         playerOptions[lightPlayer].playerDesc,
@@ -304,7 +316,7 @@ export default function App() {
 
     // For undoing/redoing, we move to the previous/next state where it was the
     // user's turn to move, otherwise the AI would just immediately move again.
-    const canUndo = augmentedState.gameStates.some(s => aiPlayer[s.player] == null);
+    const canUndo = augmentedState.gameStates.findIndex(s => aiPlayer[s.player] == null) < augmentedState.gameStates.length - 1;
     const canRedo = redoStack.some(s => aiPlayer[s.gameState.player] == null);
 
     function handleUndo() {
@@ -362,44 +374,50 @@ export default function App() {
 
     return (
         <div className="mytikas-app">
-            <GameComponent
-                state={gameState}
-                nextActions={nextActions}
-                selectedGod={selectedGod}
-                onSelect={userEnabled ? handleSelect : undefined}
-                onAction={userEnabled ? addAction : undefined}
-            />
-            <div className="right-panel">
+            <div className="main-column">
                 <StateButtonsComponent
                     onSave={showSaveDialog}
                     onLoad={handleLoad}
                     onUndo={canUndo ? handleUndo : undefined}
                     onRedo={canRedo ? handleRedo : undefined}
+                    onHistory={historyVisible ? undefined : showHistory}
                 />
-                <PlayerSelectComponent
-                    light={lightPlayer}
-                    dark={darkPlayer}
-                    setLight={setLightPlayer}
-                    setDark={setDarkPlayer}
+                <div className="turn-row">
+                    <PlayerSelectComponent
+                        light={lightPlayer}
+                        dark={darkPlayer}
+                        setLight={setLightPlayer}
+                        setDark={setDarkPlayer}
+                    />
+                    <PartialTurnComponent
+                        enabled={userEnabled}
+                        turnString={partialTurnToString(partialTurn)}
+                        onRestart={userEnabled && partialTurn.length > 0 ? restartTurn : undefined}
+                        onFinish={userEnabled && partialTurnIsComplete ? finishTurn : undefined}
+                        finishHint={userEnabled && nextActions.length === 0}
+                    />
+                </div>
+                <GameComponent
+                    state={gameState}
+                    nextActions={nextActions}
+                    selectedGod={selectedGod}
+                    onSelect={userEnabled ? handleSelect : undefined}
+                    onAction={userEnabled ? addAction : undefined}
                 />
-                <PartialTurnComponent
-                    enabled={userEnabled}
-                    turnString={partialTurnToString(partialTurn)}
-                    onRestart={userEnabled && partialTurn.length > 0 ? restartTurn : undefined}
-                    onFinish={userEnabled && partialTurnIsComplete ? finishTurn : undefined}
-                    finishHint={userEnabled && nextActions.length === 0}
-                />
+            </div>
+            {historyVisible ?
                 <HistoryComponent
                     state={augmentedState}
                     selected={selectedTurn}
                     setSelected={partialTurn.length === 0 ? setSelectedTurn : undefined}
+                    onClose={hideHistory}
                 />
-                <SaveStateComponent
-                    augmentedState={augmentedState}
-                    visible={saveDialogVisible}
-                    onClose={hideSaveDialog}
-                />
-            </div>
+                : undefined}
+            <SaveStateComponent
+                augmentedState={augmentedState}
+                visible={saveDialogVisible}
+                onClose={hideSaveDialog}
+            />
         </div>
     );
 }

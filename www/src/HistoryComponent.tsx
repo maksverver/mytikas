@@ -37,13 +37,14 @@ export type HistoryProps = {
     state: AugmentedState,
     selected?: number,
     setSelected?: (i: number|undefined) => void,
+    onClose?: () => void,
 }
 
 // Displays the history of turns played so far, with a set of control buttons to
 // move to the front or back of the list.
 //
 // If `setSelected` is undefined, selection is disabled.
-export function HistoryComponent({state, selected, setSelected}: HistoryProps) {
+export function HistoryComponent({state, selected, setSelected, onClose}: HistoryProps) {
     const turnCount = state.history.length;
 
     const hasPrev = (selected ?? turnCount) > 0;
@@ -80,43 +81,50 @@ export function HistoryComponent({state, selected, setSelected}: HistoryProps) {
 
     return (
         <div className="history">
-            <div className="turn-list" ref={turnListRef}>
-                {
-                    state.history.map((turn, i) =>
-                        <TurnComponent
-                            key={i}
-                            index={i}
-                            selected={selected === i}
-                            turnString={String(turn)}
-                            prevState={state.gameStates[i]}
-                            nextState={state.gameStates[i + 1]}
-                            onClick={setSelected == null ? undefined :
-                                () => setSelected(i === selected ? undefined : i)}
-                        />
-                    )
-                }
-            </div>
-            <div className="buttons">
-                <button
-                    title="To game start (home)"
-                    disabled={setSelected == null || !hasPrev}
-                    onClick={moveToFirst}
-                >⏮️</button>
-                <button
-                    title="Previous turn (left)"
-                    disabled={setSelected == null || !hasPrev}
-                    onClick={moveToPrev}
-                >◀️</button>
-                <button
-                    title="Next turn (right)"
-                    disabled={setSelected == null || !hasNext}
-                    onClick={moveToNext}
-                >▶️</button>
-                <button
-                    title="To game end (end)"
-                    disabled={setSelected == null || !hasNext}
-                    onClick={moveToLast}
-                >⏭️</button>
+            <div className="content">
+                <div className="turn-list" ref={turnListRef}>
+                    {
+                        state.history.map((turn, i) =>
+                            <TurnComponent
+                                key={i}
+                                index={i}
+                                selected={selected === i}
+                                turnString={String(turn)}
+                                prevState={state.gameStates[i]}
+                                nextState={state.gameStates[i + 1]}
+                                onClick={setSelected == null ? undefined :
+                                    () => setSelected(i === selected ? undefined : i)}
+                            />
+                        )
+                    }
+                </div>
+                <div className="buttons">
+                    <button
+                        title="To game start (home)"
+                        disabled={setSelected == null || !hasPrev}
+                        onClick={moveToFirst}
+                    >⏮️</button>
+                    <button
+                        title="Previous turn (left)"
+                        disabled={setSelected == null || !hasPrev}
+                        onClick={moveToPrev}
+                    >◀️</button>
+                    <button
+                        title="Next turn (right)"
+                        disabled={setSelected == null || !hasNext}
+                        onClick={moveToNext}
+                    >▶️</button>
+                    <button
+                        title="To game end (end)"
+                        disabled={setSelected == null || !hasNext}
+                        onClick={moveToLast}
+                    >⏭️</button>
+                    <button
+                        title="Hide history"
+                        disabled={onClose == null}
+                        onClick={onClose}
+                    >×</button>
+                </div>
             </div>
         </div>
     );
