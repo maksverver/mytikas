@@ -474,17 +474,32 @@ void GenerateAttacksOne(TurnBuilder &builder, field_t field) {
 
         // Hermes can attack two targets in the same turn:
         if (god == HERMES) {
-            // Sort by gods to normalize attacks, and so we can kill Athena first,
-            // so she doesn't shield the second god we attack.
-            static_assert(ATHENA == GOD_COUNT - 1);
-            std::ranges::sort(fields, {}, [&state](field_t f){ return state.GodAt(f); });
-            for (size_t i = 1; i < fields.size(); ++i) {
-                for (size_t j = 0; j < i; ++j) {
-                    Attack attacks[2] = {
-                        Attack::AtField(fields[i]),
-                        Attack::AtField(fields[j]),
-                    };
-                    add_attack_actions(attacks);
+            if (hermes_canonicalize_attacks) {
+                // Sort by gods to normalize attacks, and so we can kill Athena first,
+                // so she doesn't shield the second god we attack.
+                static_assert(ATHENA == GOD_COUNT - 1);
+                std::ranges::sort(fields, {}, [&state](field_t f){ return state.GodAt(f); });
+                for (size_t i = 1; i < fields.size(); ++i) {
+                    for (size_t j = 0; j < i; ++j) {
+                        Attack attacks[2] = {
+                            Attack::AtField(fields[i]),
+                            Attack::AtField(fields[j]),
+                        };
+                        add_attack_actions(attacks);
+                    }
+                }
+            } else {
+                // Generate two attacks in any order.
+                for (field_t f : fields) {
+                    for (field_t g : fields) {
+                        if (f != g) {
+                            Attack attacks[2] = {
+                                Attack::AtField(f),
+                                Attack::AtField(g),
+                            };
+                            add_attack_actions(attacks);
+                        }
+                    }
                 }
             }
         }

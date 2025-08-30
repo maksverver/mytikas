@@ -1403,12 +1403,16 @@ TEST_F(MovesTest, Hermes_Attacks) {
 }
 
 TEST_F(MovesTest, Hermes_AttackAthenaFirst) {
+    if (!hermes_canonicalize_attacks) {
+        GTEST_SKIP() << "This test requires hermes_canonicalize_attacks = true";
+    }
+
     state = BoardTemplate(
             "     .     "
             "    ...    "
-            "   ..e..   "
-            "  .......  "
-            " ..n.M.z.. "
+            "   .....   "
+            "  ...e...  "
+            " ...nM.z.. "
             "  .......  "
             "   .....   "
             "    ...    "
@@ -1417,22 +1421,63 @@ TEST_F(MovesTest, Hermes_AttackAthenaFirst) {
     SetHp(DARK, ATHENA, pantheon[HERMES].dmg);
 
     auto turns = TurnStrings();
-    EXPECT_THAT(turns, Contains("M!e7"));
-    EXPECT_THAT(turns, Contains("M!c5"));
+    EXPECT_THAT(turns, Contains("M!e6"));
+    EXPECT_THAT(turns, Contains("M!d5"));
     EXPECT_THAT(turns, Contains("M!g5"));
-    EXPECT_THAT(turns, Contains("M!c5,M!e7"));
-    EXPECT_THAT(turns, Contains("M!c5,M!g5"));
-    EXPECT_THAT(turns, Contains("M!e7,M!g5"));
-    EXPECT_THAT(turns, Not(Contains("M!e7,M!c5")));  // deduped
-    EXPECT_THAT(turns, Not(Contains("M!g5,M!c5")));  // deduped
-    EXPECT_THAT(turns, Not(Contains("M!g5,M!e7")));  // deduped
-    EXPECT_THAT(turns, Not(Contains("M!c5,M!e7,M!g5")));  // no more than 2 attacks
+    EXPECT_THAT(turns, Contains("M!d5,M!e6"));
+    EXPECT_THAT(turns, Contains("M!d5,M!g5"));
+    EXPECT_THAT(turns, Contains("M!e6,M!g5"));
+    EXPECT_THAT(turns, Not(Contains("M!e6,M!d5")));  // deduped
+    EXPECT_THAT(turns, Not(Contains("M!g5,M!d5")));  // deduped
+    EXPECT_THAT(turns, Not(Contains("M!g5,M!e6")));  // deduped
+    EXPECT_THAT(turns, Not(Contains("M!d5,M!e6,M!g5")));  // no more than 2 attacks
 
-    ExecuteTurn("M!c5,M!g5");
+    ExecuteTurn("M!d5,M!g5");
 
     EXPECT_TRUE(IsDead(DARK, ATHENA));
     EXPECT_EQ(hp(DARK, HERA), pantheon[HERA].hit);
     EXPECT_EQ(hp(DARK, ZEUS), pantheon[ZEUS].hit - pantheon[HERMES].dmg);
+}
+
+TEST_F(MovesTest, Hermes_AttackTwice) {
+    if (hermes_canonicalize_attacks) {
+        GTEST_SKIP() << "This test requires hermes_canonicalize_attacks == false";
+    }
+
+    state = BoardTemplate(
+            "     .     "
+            "    ...    "
+            "   .....   "
+            "  ...e...  "
+            " ...nM.z.. "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+        ).ToState(LIGHT);
+    SetHp(DARK, ATHENA, pantheon[HERMES].dmg);
+
+    auto turns = TurnStrings();
+    EXPECT_THAT(turns, Contains("M!d5"));
+    EXPECT_THAT(turns, Contains("M!e6"));
+    EXPECT_THAT(turns, Contains("M!g5"));
+    EXPECT_THAT(turns, Contains("M!d5,M!e6"));
+    EXPECT_THAT(turns, Contains("M!d5,M!g5"));
+    EXPECT_THAT(turns, Contains("M!e6,M!g5"));
+    EXPECT_THAT(turns, Contains("M!e6,M!d5"));
+    EXPECT_THAT(turns, Contains("M!g5,M!d5"));
+    EXPECT_THAT(turns, Contains("M!g5,M!e6"));
+    EXPECT_THAT(turns, Not(Contains("M!d5,M!e6,M!g5")));  // no more than 2 attacks
+
+    ExecuteTurn("M!e6,M!d5");
+    EXPECT_EQ(hp(DARK, HERA), pantheon[HERA].hit);  // protected by Athena
+    EXPECT_TRUE(IsDead(DARK, ATHENA));
+
+    EndTurn();
+
+    ExecuteTurn("M!g5,M!e6");
+    EXPECT_EQ(hp(DARK, ATHENA), pantheon[ATHENA].hit - pantheon[HERMES].dmg);
+    EXPECT_EQ(hp(DARK, ZEUS),   pantheon[ZEUS].hit   - pantheon[HERMES].dmg);
 }
 
 TEST_F(MovesTest, Hermes_Special) {

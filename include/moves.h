@@ -95,4 +95,25 @@ std::ostream &operator<<(std::ostream &os, const Turn &t);
 std::istream &operator>>(std::istream &os, Action &a);
 std::istream &operator>>(std::istream &os, Turn &t);
 
+// Hermes can attack twice. Usually the order of attacks doesn't matter.
+//
+// When this boolean is set to true, then only one order is generated (where
+// Athena is attacked first, if possible). This is best for the AI, because it
+// means that only one turn is generated instead of two which (usually) lead to
+// the same new state.
+//
+// When this boolean is set to false, then two separate turns are generated for
+// both orders, even though the resulting state is usually the same. This
+// increases the total number of turns which makes the AI slightly less
+// efficient, but is important for the UI where the user may execute the attacks
+// in either order.
+//
+// Later, I may refactor this so that the AI only considers the canonical moves,
+// either by making this boolean a parameter of the turn generator, or by
+// filtering out inferior/duplicate moves in the AI logic. (Alternatively, I
+// could force the UI to canonicalize the turn, but it's slightly tricky.)
+//
+// (This boolean is defined in the header so I can reference it in tests.)
+constexpr bool hermes_canonicalize_attacks = false;
+
 #endif  // ndef MOVES_H_INCLUDED
