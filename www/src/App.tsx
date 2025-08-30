@@ -9,9 +9,28 @@ import { decodeStateString, GameState } from './game/state.ts';
 import type { GodValue } from './game/gods.ts';
 import { classNames } from './utils.ts';
 
+const playerOptions: Record<string, {title: string, playerDesc: string|null}> = {
+    human:    { title: 'Human',             playerDesc: null },
+    random:   { title: 'Random',            playerDesc: 'random' },
+    minimax1: { title: 'Minimax (depth 1)', playerDesc: 'minimax,max_depth=1' },
+    minimax2: { title: 'Minimax (depth 2)', playerDesc: 'minimax,max_depth=2' },
+    minimax3: { title: 'Minimax (depth 3)', playerDesc: 'minimax,max_depth=3' },
+    minimax4: { title: 'Minimax (depth 4)', playerDesc: 'minimax,max_depth=4' },
+};
+
+const defaultPlayerOption = 'human';
+
+function matchPartialTurn(partialTurn: readonly Action[], turn: readonly Action[]) {
+    if (partialTurn.length > turn.length) return false;
+    for (let i = 0; i < partialTurn.length; ++i) {
+        if (partialTurn[i].encodeInt() !== turn[i].encodeInt()) return false;
+    }
+    return true;
+}
+
 // Attempts to parse the given string as either a game state string, or
 // a full turn history string, as shown in the save dialog.
-function parseAgumentedState(s: string): AugmentedState|undefined {
+function parseAugmentedState(s: string): AugmentedState|undefined {
     let e1, e2, e3;
 
     try {
@@ -47,25 +66,6 @@ function parseAgumentedState(s: string): AugmentedState|undefined {
     console.info('Could not parse string as compact turn history', e2);
     console.info('Could not parse string as game state', e3);
     return undefined;
-}
-
-const playerOptions: Record<string, {title: string, playerDesc: string|null}> = {
-    human:    { title: 'Human',             playerDesc: null },
-    random:   { title: 'Random',            playerDesc: 'random' },
-    minimax1: { title: 'Minimax (depth 1)', playerDesc: 'minimax,max_depth=1' },
-    minimax2: { title: 'Minimax (depth 2)', playerDesc: 'minimax,max_depth=2' },
-    minimax3: { title: 'Minimax (depth 3)', playerDesc: 'minimax,max_depth=3' },
-    minimax4: { title: 'Minimax (depth 4)', playerDesc: 'minimax,max_depth=4' },
-};
-
-const defaultPlayerOption = 'human';
-
-function matchPartialTurn(partialTurn: readonly Action[], turn: readonly Action[]) {
-    if (partialTurn.length > turn.length) return false;
-    for (let i = 0; i < partialTurn.length; ++i) {
-        if (partialTurn[i].encodeInt() !== turn[i].encodeInt()) return false;
-    }
-    return true;
 }
 
 // Returns a list of next actions that are consistent with the given partial
@@ -336,7 +336,7 @@ export default function App() {
         if (s == null) return;  // dialog closed
         s = s.replace(/\s+/g,'');  // strip whitespace
         if (s == '') return;  // ignore empty string, instead of parsing as empty turn list
-        const newAugmentedState = parseAgumentedState(s);
+        const newAugmentedState = parseAugmentedState(s);
         if (newAugmentedState == null) {
             alert('Failed to parse game state string! (See Javascript log for details.)');
             return;
