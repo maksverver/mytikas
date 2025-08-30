@@ -135,13 +135,26 @@
     margin-top: 0;
 }
 
-.save-dialog .code {
-    font: 16px monospace;
-    overflow: wrap;
-    overflow-wrap: anywhere;
-}
-
 .save-dialog .buttons {
     margin-top: 20px;
     text-align: center;
+}
+
+.copyable-string {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+}
+
+.copyable-string .copy {
+    cursor: pointer;
+    font-size: 16px;
+    padding: 8px;
+    background: #ddd;
+}
+
+.copyable-string .code {
+    font: 16px monospace;
+    overflow: wrap;
+    overflow-wrap: anywhere;
 }

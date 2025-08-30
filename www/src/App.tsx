@@ -171,6 +171,23 @@ function StateButtonsComponent({onSave, onLoad, onUndo, onRedo}: StateButtonsPro
     );
 }
 
+function CopyableStringComponent({desc, text}: {desc: string, text: string}) {
+    const handleClick = () =>
+        navigator.clipboard.writeText(text)
+            .then(() => {
+                alert(`Copied ${desc} to clipboard.`);
+            })
+            .catch((e) => {
+                alert(`Error: could not copy ${desc} to clipboard!\n\n${e}`);
+            });
+    return (
+        <div className="copyable-string">
+            <span className="copy" title="Copy to clipboard" onClick={handleClick}>📋</span>
+            <span className="code">{text}</span>
+        </div>
+    );
+}
+
 export default function App() {
     // Logic: for a given augmented state, we can either have a currently
     // selected turn, OR a partial turn being constructed (when it's the user's
@@ -286,6 +303,7 @@ export default function App() {
         let s = prompt("Enter game state or move history");
         if (s == null) return;  // dialog closed
         s = s.replace(/\s+/g,'');  // strip whitespace
+        if (s == '') return;  // ignore empty string, instead of parsing as empty turn list
         const newAugmentedState = parseAgumentedState(s);
         if (newAugmentedState == null) {
             alert('Failed to parse game state string! (See Javascript log for details.)');
@@ -362,17 +380,11 @@ export default function App() {
                         <div className="close" onClick={hideSaveDialog}>✖</div>
                         <h1>Save state</h1>
                         <h2>Final game state</h2>
-                        <div>
-                            <span className="code">{gameStateString}</span>
-                        </div>
+                        <CopyableStringComponent desc="final game state" text={gameStateString}/>
                         <h2>Compact turn history</h2>
-                        <div>
-                            <span className="code">{compactTurnHistoryString}</span>
-                        </div>
+                        <CopyableStringComponent desc="compact turn history" text={compactTurnHistoryString}/>
                         <h2>Verbose turn history</h2>
-                        <div>
-                            <span className="code">{turnHistoryString}</span>
-                        </div>
+                        <CopyableStringComponent desc="verbose turn history" text={turnHistoryString}/>
                     </div>
                 </dialog>
             </div>
