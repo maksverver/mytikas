@@ -1,4 +1,4 @@
-name: Emscripten + Vite Javascript build
+name: Web UI
 
 on:
   push:
@@ -13,7 +13,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
     - uses: mymindstorm/setup-emsdk@v14
     - run: emcc -v
     - name: Compile C++ to Wasm+Javascript using Emscripten
