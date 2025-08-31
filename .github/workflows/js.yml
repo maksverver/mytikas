@@ -13,7 +13,22 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+
+    # Compile C++ to Wasm+Javascript using Emscripten
     - uses: mymindstorm/setup-emsdk@v14
     - run: emcc -v
     - name: Compile C++ to Wasm+Javascript using Emscripten
       run: ./build-wasm-api.sh
+
+    # Build app bundle with Vite
+    - uses: actions/setup-node@v4
+      with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: www/package-lock.json
+    - run: node -v
+    - name: Build web app
+      working-directory: www
+      run: |
+        npm ci
+        npm run build
