@@ -176,16 +176,16 @@ function StateButtonsComponent({onSave, onLoad, onUndo, onRedo, onHistory}: Stat
 function CopyableStringComponent({desc, text}: {desc: string, text: string}) {
     const handleClick = () => {
         if (navigator?.clipboard?.writeText == null) {
-            alert(`Error: could not copy ${desc} to clipboard!
+            alert(`❌ Error: could not copy ${desc} to clipboard!
 
 navigator.clipboard.writeText() is not defined; this may happen when running outside a secure context.`);
         }
         navigator.clipboard.writeText(text)
             .then(() => {
-                alert(`Copied ${desc} to clipboard.`);
+                alert(`✅ Copied ${desc} to clipboard.`);
             })
             .catch((e) => {
-                alert(`Error: could not copy ${desc} to clipboard!\n\n${e}`);
+                alert(`❌ Error: could not copy ${desc} to clipboard!\n\n${e}`);
             });
     }
     return (
