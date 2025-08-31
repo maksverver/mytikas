@@ -1,0 +1,65 @@
+# Builds the web app and deploys it to github pages.
+#
+# This is based on docs from:
+#
+#  - https://vite.dev/guide/static-deploy
+#  - https://github.com/mymindstorm/setup-emsdk
+#
+
+name: Web UI
+
+on:
+  push:
+    branches: [ "master" ]
+
+# Sets the GITHUB_TOKEN permissions to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    # Compile C++ to Wasm+Javascript using Emscripten
+    - uses: mymindstorm/setup-emsdk@v14
+      with:
+        version: latest
+        actions-cache-folder: emsdk-cache
+    - run: emcc -v
+    - name: Compile C++ to Wasm+Javascript using Emscripten
+      run: ./build-wasm-api.sh
+
+    # Build app bundle with Vite
+    - uses: actions/setup-node@v4
+      with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: www/package-lock.json
+    - run: node -v
+    - name: Build web app
+      working-directory: www
+      run: |
+        npm ci
+        npm run build
+
+    # Deploy to GitHub Pages
+    - uses: actions/configure-pages@v5
+    - uses: actions/upload-pages-artifact@v4
+      with:
+        path: www/dist
+    - uses: actions/deploy-pages@v4
