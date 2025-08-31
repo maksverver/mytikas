@@ -52,7 +52,7 @@ function parseAugmentedState(s: string): AugmentedState|undefined {
     }
 
     try {
-        let gameState: GameState = decodeStateString(s);
+        const gameState: GameState = decodeStateString(s);
         if (gameState != null) {
             return AugmentedState.fromGameState(gameState);
         }
@@ -224,7 +224,7 @@ function SaveStateComponent({visible, augmentedState, onClose}: SaveStateProps) 
         <dialog
             className="save-dialog"
             ref={dialogRef}
-            onClick={e => e.currentTarget.requestClose()}
+            onClick={e => e.currentTarget.close()}
             onClose={onClose}
         >
             <div className="content" onClick={e => e.stopPropagation()}>

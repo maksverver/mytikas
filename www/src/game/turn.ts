@@ -12,7 +12,7 @@ export type ActionTypeValue = typeof ActionType[keyof typeof ActionType];
 
 const passString = 'x';
 
-const actionTypeNames = ['summon', 'move', 'attack', 'special'];
+//const actionTypeNames = ['summon', 'move', 'attack', 'special'];
 const actionTypeChars = "@>!+";
 
 // Limit on the integer returned by Action.encodeInt().

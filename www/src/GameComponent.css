@@ -89,6 +89,10 @@
     pointer-events: none;
 }
 
+.board-pieces .piece {
+    filter: drop-shadow(4px 4px 8px rgba(0, 0, 0, 0.5));
+}
+
 .piece .emoji {
     margin:       4px;
     width:       48px;

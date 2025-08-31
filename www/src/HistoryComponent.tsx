@@ -15,7 +15,7 @@ export type TurnProps = {
     onClick?: () => void,
 }
 
-function TurnComponent({index, selected, turnString, prevState, nextState, onClick}: TurnProps) {
+function TurnComponent({index, selected, turnString, /* prevState, nextState, */ onClick}: TurnProps) {
     return (
         <div
             className={
