@@ -7,14 +7,17 @@ on:
     branches: [ "master" ]
 
 jobs:
-  build-debug:
+  build:
 
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        build-type: [Debug, Release]
 
     steps:
     - uses: actions/checkout@v4
     - name: cmake
-      run: cmake -B build -D CMAKE_BUILD_TYPE=Debug
+      run: cmake -B build -D CMAKE_BUILD_TYPE=${{matrix.build-type}}
     - name: build
       run: make -C build all
     - name: test
