@@ -12,7 +12,6 @@
 }
 
 button {
-    flex: 1;
     font-size: 14pt;
     padding: 8px;
     border-color: #ddd;
@@ -113,12 +112,15 @@ button:disabled {
     box-shadow: 25px 25px 50px #888;
 }
 
+.save-dialog button {
+    border: none;
+}
+
 .save-dialog .close {
     position: absolute;
     right: 20px;
     top: 20px;
     cursor: pointer;
-    background: yellow;
     min-width:  40px;
     min-height: 40px;
     display: flex;

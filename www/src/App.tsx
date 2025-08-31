@@ -175,10 +175,10 @@ function StateButtonsComponent({onSave, onLoad, onUndo, onRedo, onHistory}: Stat
 
 function CopyableStringComponent({desc, text}: {desc: string, text: string}) {
     const handleClick = () => {
-        if (!navigator.clipboard) {
+        if (navigator?.clipboard?.writeText == null) {
             alert(`Error: could not copy ${desc} to clipboard!
 
-navigator.clipboard is not defined; this may happen when running outside a secure context.`);
+navigator.clipboard.writeText() is not defined; this may happen when running outside a secure context.`);
         }
         navigator.clipboard.writeText(text)
             .then(() => {
@@ -190,7 +190,7 @@ navigator.clipboard is not defined; this may happen when running outside a secur
     }
     return (
         <div className="copyable-string">
-            <span className="copy" title="Copy to clipboard" onClick={handleClick}>📋</span>
+            <button className="copy" title="Copy to clipboard" onClick={handleClick}>📋</button>
             <span className="code">{text}</span>
         </div>
     );
@@ -207,10 +207,12 @@ function SaveStateComponent({visible, augmentedState, onClose}: SaveStateProps) 
 
     // Open/close save dialog
     useEffect(() => {
-        if (!dialogRef.current?.open && visible) {
-            dialogRef.current!.showModal()
-        } else if (dialogRef.current?.open && !visible) {
-            dialogRef.current!.close();
+        const dialog = dialogRef.current;
+        if (dialog == null) return;
+        if (visible) {
+            if (!dialog.open) dialog.showModal();
+        } else {
+            if (dialog.open) dialog.close();
         }
     }, [visible]);
 
@@ -219,9 +221,16 @@ function SaveStateComponent({visible, augmentedState, onClose}: SaveStateProps) 
     const compactTurnHistoryString = formatCompactTurnHistory(augmentedState.history);
 
     return (
-        <dialog className="save-dialog" ref={dialogRef} onClick={onClose}>
+        <dialog
+            className="save-dialog"
+            ref={dialogRef}
+            onClick={e => e.currentTarget.requestClose()}
+            onClose={onClose}
+        >
             <div className="content" onClick={e => e.stopPropagation()}>
-                <div className="close" onClick={onClose}>×</div>
+                <form method="dialog">
+                    <button className="close">×</button>
+                </form>
                 <h1>Save state</h1>
                 <h2>Final game state</h2>
                 <CopyableStringComponent desc="final game state" text={gameStateString}/>
