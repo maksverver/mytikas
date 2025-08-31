@@ -2,6 +2,16 @@
 
 An implementation of the board game Crossing Olympus.
 
+More information about the game:
+
+  * https://www.boldmovegames.com/
+  * https://boardgamegeek.com/boardgame/242375/crossing-olympus
+
+
+# Rules
+
+See [RULES.md](./RULES.md) for a summary of the rules.
+
 
 # Release building
 
