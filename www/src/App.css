@@ -50,24 +50,6 @@ button:disabled {
     white-space: pre;
 }
 
-@keyframes button-flash-animation {
-  40%,
-  60% {
-    scale: 100%;
-    background: #ccf;
-  }
-
-  50% {
-    scale: 125%;
-    background: #ddf;
-  }
-}
-
-.partial-turn button.flash {
-    background: #ccf;
-    animation: button-flash-animation 2s ease 2s infinite;
-}
-
 .player-select {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -166,4 +148,22 @@ button:disabled {
 .copyable-string .code {
     font: 16px monospace;
     overflow-wrap: anywhere;
+}
+
+@keyframes button-flash-animation {
+  40%,
+  60% {
+    scale: 100%;
+    background: #ccf;
+  }
+
+  50% {
+    scale: 125%;
+    background: #ddf;
+  }
+}
+
+button.flash {
+    background: #ccf;
+    animation: button-flash-animation 2s ease 2s infinite;
 }

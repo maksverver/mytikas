@@ -59,7 +59,7 @@ export function HistoryComponent({state, selected, setSelected, onClose}: Histor
     const lastTurnIndex = selected ?? turnCount - 1;
     useEffect(() => {
         const turnListElem = turnListRef.current;
-        if (turnListElem != null && lastTurnIndex >= 0) {
+        if (turnListElem != null && 0 <= lastTurnIndex && lastTurnIndex < turnListElem.children.length) {
             turnListElem.children[lastTurnIndex].scrollIntoView({
                 block: 'nearest', inline: 'nearest'});
         }

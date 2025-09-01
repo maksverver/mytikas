@@ -159,16 +159,20 @@ type StateButtonsProps = {
     onUndo?: () => void,
     onRedo?: () => void,
     onHistory?: () => void,
+    historyFlash: boolean,
 };
 
-function StateButtonsComponent({onSave, onLoad, onUndo, onRedo, onHistory}: StateButtonsProps) {
+function StateButtonsComponent({onSave, onLoad, onUndo, onRedo, onHistory, historyFlash}: StateButtonsProps) {
     return (
         <div className="state-buttons">
             <button title="Save" disabled={onSave == null} onClick={onSave}>💾</button>
             <button title="Load" disabled={onLoad == null} onClick={onLoad}>📂</button>
             <button title="Undo" disabled={onUndo == null} onClick={onUndo}>↩️</button>
             <button title="Redo" disabled={onRedo == null} onClick={onRedo}>↪️</button>
-            <button title="History" disabled={onHistory == null} onClick={onHistory}>📜</button>
+            <button title="History"
+                className={classNames({flash: historyFlash})}
+                disabled={onHistory == null} onClick={onHistory}
+            >📜</button>
         </div>
     );
 }
@@ -270,7 +274,6 @@ export default function App() {
     const showHistory = useCallback(() => setHistoryVisible(true), []);
     const hideHistory = useCallback(() => setHistoryVisible(false), []);
 
-
     const aiPlayer = [
         playerOptions[lightPlayer].playerDesc,
         playerOptions[darkPlayer].playerDesc,
@@ -298,7 +301,6 @@ export default function App() {
         setAugmentedState(newAugmentedState);
         setPartialTurn([]);
         setSelectedGod(undefined);
-        setSelectedTurn(undefined);
         setRedoStack(newRedoStack);
     }
 
@@ -390,6 +392,7 @@ export default function App() {
                     onUndo={canUndo ? handleUndo : undefined}
                     onRedo={canRedo ? handleRedo : undefined}
                     onHistory={historyVisible ? undefined : showHistory}
+                    historyFlash={!historyVisible && selectedTurn != null}
                 />
                 <div className="turn-row">
                     <PlayerSelectComponent
