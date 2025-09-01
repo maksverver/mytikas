@@ -1,6 +1,6 @@
 import './App.css'
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useReducer, useRef } from 'react';
 import GameComponent from './GameComponent.tsx';
 import { HistoryComponent } from './HistoryComponent.tsx';
 import { AugmentedState, type RedoState } from './AugmentedState.ts';
@@ -8,8 +8,9 @@ import { Action, formatCompactTurnHistory, formatTurnHistory, parseCompactTurnHi
 import { decodeStateString, GameState } from './game/state.ts';
 import type { GodValue } from './game/gods.ts';
 import { classNames } from './utils.ts';
+import { Player, type PlayerValue } from './game/player.ts';
 
-const playerOptions: Record<string, {title: string, playerDesc: string|null}> = {
+const playerOptions = {
     human:    { title: 'Human',             playerDesc: null },
     random:   { title: 'Random',            playerDesc: 'random' },
     minimax1: { title: 'Minimax (depth 1)', playerDesc: 'minimax,max_depth=1' },
@@ -17,6 +18,8 @@ const playerOptions: Record<string, {title: string, playerDesc: string|null}> = 
     minimax3: { title: 'Minimax (depth 3)', playerDesc: 'minimax,max_depth=3' },
     minimax4: { title: 'Minimax (depth 4)', playerDesc: 'minimax,max_depth=4' },
 };
+
+type PlayerOption = keyof (typeof playerOptions);
 
 const defaultPlayerOption = 'human';
 
@@ -128,10 +131,10 @@ function PartialTurnComponent({enabled, turnString, onRestart, onFinish, finishH
 }
 
 type PlayerSelectPros = {
-    light: string;
-    dark: string;
-    setLight: (s: string) => void;
-    setDark:  (s: string) => void;
+    light: PlayerOption;
+    dark: PlayerOption;
+    setLight: (s: PlayerOption) => void;
+    setDark:  (s: PlayerOption) => void;
 }
 
 function PlayerSelectComponent({light, dark, setLight, setDark}: PlayerSelectPros) {
@@ -141,11 +144,11 @@ function PlayerSelectComponent({light, dark, setLight, setDark}: PlayerSelectPro
         <div className="player-select">
             <label htmlFor={lightSelectId}>Light player</label>
             <label htmlFor={darkSelectId}>Dark player</label>
-            <select id={lightSelectId} value={light} onChange={e => setLight(e.target.value)}>
+            <select id={lightSelectId} value={light} onChange={e => setLight(e.target.value as PlayerOption)}>
                 {Object.entries(playerOptions).map(([key, {title}]) =>
                     (<option key={key} value={key}>{title}</option>))}
             </select>
-            <select id={darkSelectId} value={dark} onChange={e => setDark(e.target.value)}>
+            <select id={darkSelectId} value={dark} onChange={e => setDark(e.target.value as PlayerOption)}>
                 {Object.entries(playerOptions).map(([key, {title}]) =>
                     (<option key={key} value={key}>{title}</option>))}
             </select>
@@ -247,32 +250,192 @@ function SaveStateComponent({visible, augmentedState, onClose}: SaveStateProps) 
     );
 }
 
-export default function App() {
-    // Logic: for a given augmented state, we can either have a currently
-    // selected turn, OR a partial turn being constructed (when it's the user's
-    // turn to move), but not both.
-    const [augmentedState, setAugmentedState] = useState(() => AugmentedState.fromInitialState());
-    const [selectedTurn, setSelectedTurn] = useState<number|undefined>();
+type AppState = {
+    augmentedState: AugmentedState,
+
+    // Logic: for a given augmented state, we can either have a turn selected
+    // (in the history panel) OR a partial turn being constructed (when it's the
+    // user's turn to move), but not both.
+    selectedTurn: number|undefined,
 
     // These are used to construct a turn, by first selecting a god in play,
     // then clicking on a destination field to create a move action, etc.
     // The details are handled by the GameComponent.
-    const [partialTurn, setPartialTurn] = useState<readonly Action[]>([]);
-    const [selectedGod, setSelectedGod] = useState<GodValue|undefined>();
+    partialTurn: readonly Action[],
+    selectedGod: GodValue|undefined,
 
-    // These set whether the light/dark players are controlled by the human user or an AI.
-    const [lightPlayer, setLightPlayer] = useState<string>(defaultPlayerOption);
-    const [darkPlayer,  setDarkPlayer]  = useState<string>(defaultPlayerOption);
+    // These control which players are controlled by the human user or an AI.
+    lightPlayer: PlayerOption,
+    darkPlayer: PlayerOption,
 
-    const [redoStack, setRedoStack] = useState<RedoState[]>([]);
+    redoStack: RedoState[],
 
-    const [saveDialogVisible, setSaveDialogVisible] = useState<boolean>(false);
-    const showSaveDialog = useCallback(() => setSaveDialogVisible(true), []);
-    const hideSaveDialog = useCallback(() => setSaveDialogVisible(false), []);
+    saveDialogVisible: boolean,
 
-    const [historyVisible, setHistoryVisible] = useState<boolean>(false);
-    const showHistory = useCallback(() => setHistoryVisible(true), []);
-    const hideHistory = useCallback(() => setHistoryVisible(false), []);
+    historyVisible: boolean,
+};
+
+function initAppState(): AppState {
+    return {
+        augmentedState: AugmentedState.fromInitialState(),
+        selectedTurn: undefined,
+        partialTurn: [],
+        selectedGod: undefined,
+        lightPlayer: defaultPlayerOption,
+        darkPlayer: defaultPlayerOption,
+        redoStack: [],
+        saveDialogVisible: false,
+        historyVisible: false,
+    };
+}
+
+type AppAction = {
+    type: 'select-turn',
+    turn: number|undefined,
+} | {
+    type: 'toggle-selected-god',
+    god: GodValue|undefined,
+} | {
+    type: 'partial-turn-reset' | 'partial-turn-finish',
+} | {
+    type: 'partial-turn-add-action',
+    action: Action,
+} | {
+    type: 'set-light-player' | 'set-dark-player',
+    player: PlayerOption,
+} | {
+    type: 'undo' | 'redo',
+} | {
+    type: 'execute-turn',
+    turn: Turn,
+} | {
+    type: 'load-state',
+    state: AugmentedState,
+} | {
+    type: 'show-save-dialog' | 'hide-save-dialog',
+} | {
+    type: 'show-history' | 'hide-history',
+};
+
+function getPlayerOptions(appState: AppState, player: PlayerValue): (typeof playerOptions)[PlayerOption] {
+    if (player === Player.light) return playerOptions[appState.lightPlayer];
+    if (player === Player.dark)  return playerOptions[appState.darkPlayer];
+    return undefined as never;
+}
+
+function isUserControlled(appState: AppState, player: PlayerValue) {
+    return getPlayerOptions(appState, player).playerDesc == null;
+}
+
+function reduceAppState(state: AppState, action: AppAction): AppState {
+    function changeState(augmentedState: AugmentedState, redoStack: RedoState[]): AppState {
+        return {
+            ...state,
+            augmentedState,
+            partialTurn: [],
+            selectedGod: undefined,
+            redoStack,
+        };
+    }
+
+    switch (action.type) {
+        case 'select-turn':
+            return {...state, selectedTurn: action.turn};
+
+        case 'toggle-selected-god':
+            return {
+                ...state,
+                selectedGod: state.selectedGod === action.god ? undefined : action.god
+            };
+
+        case 'partial-turn-reset':
+            return {...state, partialTurn: []};
+
+        case 'partial-turn-add-action':
+            return {...state, partialTurn: [...state.partialTurn, action.action]};
+
+        case 'partial-turn-finish':
+            return changeState(state.augmentedState.addTurn(new Turn(state.partialTurn)), []);
+
+        case 'set-light-player':
+            return {...state, lightPlayer: action.player};
+
+        case 'set-dark-player':
+            return {...state, darkPlayer: action.player};
+
+        case 'undo':
+            {
+                let augmentedState = state.augmentedState;
+                let redoStack = Array.from(state.redoStack);
+                let redoState: RedoState;
+                while (augmentedState.canUndo) {
+                    [augmentedState, redoState] = augmentedState.undoTurn();
+                    redoStack.push(redoState);
+                    if (isUserControlled(state, augmentedState.lastGameState.player)) break;
+                }
+                return changeState(augmentedState, redoStack);
+            }
+
+        case 'redo':
+            {
+                let augmentedState = state.augmentedState;
+                let redoStack = Array.from(state.redoStack);
+                while (redoStack.length > 0) {
+                    augmentedState = augmentedState.redoTurn(redoStack.pop()!);
+                    if (isUserControlled(state, augmentedState.lastGameState.player)) break;
+                }
+                return changeState(augmentedState, redoStack);
+            }
+
+        case 'execute-turn':
+            return changeState(state.augmentedState.addTurn(action.turn), []);
+
+        case 'load-state':
+            return changeState(action.state, []);
+
+        case 'show-save-dialog':
+            return {...state, saveDialogVisible: true};
+
+        case 'hide-save-dialog':
+            return {...state, saveDialogVisible: false};
+
+        case 'show-history':
+            return {...state, historyVisible: true};
+
+        case 'hide-history':
+            return {...state, historyVisible: false};
+    }
+}
+
+export default function App() {
+    const [appState, dispatch] = useReducer(reduceAppState, undefined, initAppState);
+
+    const {
+        augmentedState,
+        selectedTurn,
+        partialTurn,
+        selectedGod,
+        lightPlayer,
+        darkPlayer,
+        redoStack,
+        saveDialogVisible,
+        historyVisible,
+    } = appState;
+
+    const selectTurn = useCallback((turn: number|undefined) => dispatch({type: 'select-turn', turn}), []);
+    const toggleSelectedGod = useCallback((god: GodValue|undefined) => dispatch({type: 'toggle-selected-god', god}), []);
+    const partialTurnReset = useCallback(() => dispatch({type: 'partial-turn-reset'}), []);
+    const partialTurnAddAction = useCallback((action: Action) => dispatch({type: 'partial-turn-add-action', action}), []);
+    const partialTurnFinish = useCallback(() => dispatch({type: 'partial-turn-finish'}), []);
+    const setLightPlayer = useCallback((player: PlayerOption) => dispatch({type: 'set-light-player', player}), []);
+    const setDarkPlayer = useCallback((player: PlayerOption) => dispatch({type: 'set-dark-player', player}), []);
+    const showSaveDialog = useCallback(() => dispatch({type: 'show-save-dialog'}), []);
+    const hideSaveDialog = useCallback(() => dispatch({type: 'hide-save-dialog'}), []);
+    const showHistory = useCallback(() => dispatch({type: 'show-history'}), []);
+    const hideHistory = useCallback(() => dispatch({type: 'hide-history'}), []);
+    const undo = useCallback(() => dispatch({type: 'undo'}), []);
+    const redo = useCallback(() => dispatch({type: 'redo'}), []);
+    const executeTurn = useCallback((turn: Turn) => dispatch({type: 'execute-turn', turn}), []);
 
     const aiPlayer = [
         playerOptions[lightPlayer].playerDesc,
@@ -281,9 +444,10 @@ export default function App() {
     const aiMoveDelayMs = 500;
 
     const nextTurns = augmentedState.nextTurns;
-    const playerDesc = aiPlayer[augmentedState.lastGameState.player];
-
     const gameIsOver = nextTurns.length === 0;
+
+    const nextPlayer = augmentedState.lastGameState.player;
+    const playerDesc = getPlayerOptions(appState, nextPlayer).playerDesc;
     const userEnabled = selectedTurn == null && playerDesc == null && !gameIsOver;
 
     const gameState =
@@ -296,75 +460,22 @@ export default function App() {
             ? findNextActions(partialTurn, nextTurns)
             : [[], false];
 
-
-    function changeState(newAugmentedState: AugmentedState, newRedoStack: RedoState[] = []) {
-        setAugmentedState(newAugmentedState);
-        setPartialTurn([]);
-        setSelectedGod(undefined);
-        setRedoStack(newRedoStack);
-    }
-
-    function executeTurn(turn: Turn) {
-        changeState(augmentedState.addTurn(turn));
-    }
-
-    function handleSelect(god: GodValue | undefined) {
-        return setSelectedGod(god === selectedGod ? undefined : god);
-    }
-
-    // State button handlers.
-    function addAction(action: Action) {
-        setPartialTurn([...partialTurn, action]);
-        setSelectedGod(undefined);
-    }
-    function restartTurn() {
-        setPartialTurn([]);
-    }
-    function finishTurn() {
-        executeTurn(new Turn(partialTurn));
-        setPartialTurn([]);
-    }
-
     // For undoing/redoing, we move to the previous/next state where it was the
     // user's turn to move, otherwise the AI would just immediately move again.
     const canUndo = augmentedState.gameStates.findIndex(s => aiPlayer[s.player] == null) < augmentedState.gameStates.length - 1;
     const canRedo = redoStack.some(s => aiPlayer[s.gameState.player] == null);
-
-    function handleUndo() {
-        let newAugmentedState = augmentedState;
-        let newRedoStack = Array.from(redoStack);
-        let redoState: RedoState;
-        while (newAugmentedState.canUndo) {
-            [newAugmentedState, redoState] = newAugmentedState.undoTurn();
-            newRedoStack.push(redoState);
-            if (aiPlayer[newAugmentedState.lastGameState.player] == null) break;
-        }
-        changeState(newAugmentedState);
-        setRedoStack(newRedoStack);
-    }
-
-    function handleRedo() {
-        let newAugmentedState = augmentedState;
-        let newRedoStack = Array.from(redoStack);
-        while (newRedoStack.length > 0) {
-            newAugmentedState = newAugmentedState.redoTurn(newRedoStack.pop()!);
-            if (aiPlayer[newAugmentedState.lastGameState.player] == null) break;
-        }
-        changeState(newAugmentedState);
-        setRedoStack(newRedoStack);
-    }
 
     function handleLoad() {
         let s = prompt("Enter game state or move history");
         if (s == null) return;  // dialog closed
         s = s.replace(/\s+/g,'');  // strip whitespace
         if (s == '') return;  // ignore empty string, instead of parsing as empty turn list
-        const newAugmentedState = parseAugmentedState(s);
-        if (newAugmentedState == null) {
+        const state = parseAugmentedState(s);
+        if (state == null) {
             alert('Failed to parse game state string! (See Javascript log for details.)');
             return;
         }
-        changeState(newAugmentedState);
+        dispatch({type: 'load-state', state});
     }
 
     // Play AI moves:
@@ -377,9 +488,7 @@ export default function App() {
             return;
         }
         // Add a small delay before moving.
-        const timeoutId = setTimeout(() => {
-            executeTurn(nextTurn);
-        }, aiMoveDelayMs);
+        const timeoutId = setTimeout(() =>  executeTurn(nextTurn), aiMoveDelayMs);
         return () => clearTimeout(timeoutId);
     }, [playerDesc, augmentedState]);
 
@@ -389,8 +498,8 @@ export default function App() {
                 <StateButtonsComponent
                     onSave={showSaveDialog}
                     onLoad={handleLoad}
-                    onUndo={canUndo ? handleUndo : undefined}
-                    onRedo={canRedo ? handleRedo : undefined}
+                    onUndo={canUndo ? undo : undefined}
+                    onRedo={canRedo ? redo : undefined}
                     onHistory={historyVisible ? undefined : showHistory}
                     historyFlash={!historyVisible && selectedTurn != null}
                 />
@@ -404,8 +513,8 @@ export default function App() {
                     <PartialTurnComponent
                         enabled={userEnabled}
                         turnString={partialTurnToString(partialTurn)}
-                        onRestart={userEnabled && partialTurn.length > 0 ? restartTurn : undefined}
-                        onFinish={userEnabled && partialTurnIsComplete ? finishTurn : undefined}
+                        onRestart={userEnabled && partialTurn.length > 0 ? partialTurnReset : undefined}
+                        onFinish={userEnabled && partialTurnIsComplete ? partialTurnFinish : undefined}
                         finishHint={userEnabled && nextActions.length === 0}
                     />
                 </div>
@@ -413,8 +522,8 @@ export default function App() {
                     state={gameState}
                     nextActions={nextActions}
                     selectedGod={selectedGod}
-                    onSelect={userEnabled ? handleSelect : undefined}
-                    onAction={userEnabled ? addAction : undefined}
+                    onSelect={userEnabled ? toggleSelectedGod : undefined}
+                    onAction={userEnabled ? partialTurnAddAction : undefined}
                 />
                 <p className="bottom-links">
                     <a href="https://github.com/maksverver/mytikas/">Source code</a>
@@ -426,7 +535,7 @@ export default function App() {
                 <HistoryComponent
                     state={augmentedState}
                     selected={selectedTurn}
-                    setSelected={partialTurn.length === 0 ? setSelectedTurn : undefined}
+                    setSelected={partialTurn.length === 0 ? selectTurn : undefined}
                     onClose={hideHistory}
                 />
                 : undefined}
