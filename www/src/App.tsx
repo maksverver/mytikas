@@ -416,6 +416,11 @@ export default function App() {
                     onSelect={userEnabled ? handleSelect : undefined}
                     onAction={userEnabled ? addAction : undefined}
                 />
+                <p className="bottom-links">
+                    <a href="https://github.com/maksverver/mytikas/">Source code</a>
+                    &nbsp;&nbsp;&nbsp;●&nbsp;&nbsp;&nbsp;
+                    <a href="https://github.com/maksverver/mytikas/blob/master/RULES.md">Rules summary</a>
+                </p>
             </div>
             {historyVisible ?
                 <HistoryComponent

@@ -167,3 +167,25 @@ button.flash {
     background: #ccf;
     animation: button-flash-animation 2s ease 2s infinite;
 }
+
+.bottom-links {
+    text-align: center;
+}
+
+a:link {
+  color: #006fbf;
+  text-decoration: none;
+}
+
+a:visited {
+  color: #005380;
+}
+
+a:hover {
+  color: #0095ff;
+  text-decoration: underline
+}
+
+a:active {
+  color: #ffd500;
+}
