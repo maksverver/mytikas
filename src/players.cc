@@ -35,8 +35,15 @@ std::optional<param_map_t> ParseParams(std::span<std::string_view> parts) {
 }
 
 std::optional<RandomPlayerOpts> ParseRandomOpts(const param_map_t &params) {
-    if (!params.empty()) return {};
-    return RandomPlayerOpts{};
+    RandomPlayerOpts res = {};
+    for (const auto &[key, val] : params) {
+        if (key == "verbose") {
+            res.verbose = true;
+        } else {
+            return {};  // Unknown key
+        }
+    }
+    return res;
 }
 
 std::optional<CliPlayerOpts> ParseCliOpts(const param_map_t &params) {
@@ -51,6 +58,8 @@ std::optional<MinimaxPlayerOpts> ParseMinimaxOpts(const param_map_t &params) {
             if (std::from_chars(val.data(), val.data() + val.size(), res.max_depth).ec != std::errc{}) return {};
         } else if (key == "experiment") {
             res.experiment = true;
+        } else if (key == "verbose") {
+            res.verbose = true;
         } else {
             return {};  // Unknown key
         }

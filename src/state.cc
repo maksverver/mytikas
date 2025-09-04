@@ -402,7 +402,7 @@ int State::AlmostWinner() const {
 
     auto p1 = PlayerGods(LIGHT);
     auto p2 = PlayerGods(DARK);
-    if (p1 != 0 && p2 != 0) return false;
+    if (p1 != 0 && p2 != 0) return -1;
 
     // When only one player has pieces left, the player with pieces left can win,
     // unless they only have Hera left and she's on a field from which she

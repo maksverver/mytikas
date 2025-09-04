@@ -8,9 +8,10 @@
 
 class RandomPlayer : public GamePlayer {
 public:
-    RandomPlayer() : rng(InitializeRng()) {}
+    RandomPlayer(bool verbose) : verbose(verbose), rng(InitializeRng()) {}
     std::optional<Turn> SelectTurn(const State &state) override;
 private:
+    bool verbose;
     rng_t rng;
 };
 
@@ -18,10 +19,10 @@ std::optional<Turn> RandomPlayer::SelectTurn(const State &state) {
     std::vector<Turn> turns = GenerateTurns(state);
     assert(!turns.empty());
     Turn turn = Choose(rng, turns);
-    std::cerr << "Randomly selected: " << turn << "\n\n";
+    if (verbose) std::cerr << "Randomly selected: " << turn << "\n";
     return turn;
 };
 
-GamePlayer *CreateRandomPlayer(const RandomPlayerOpts &) {
-    return new RandomPlayer();
+GamePlayer *CreateRandomPlayer(const RandomPlayerOpts &opts) {
+    return new RandomPlayer(opts.verbose);
 }

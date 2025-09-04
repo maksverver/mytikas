@@ -19,6 +19,7 @@ enum PlayerType {
 };
 
 struct RandomPlayerOpts {
+    bool verbose = false;
 };
 
 struct CliPlayerOpts {
@@ -27,6 +28,7 @@ struct CliPlayerOpts {
 struct MinimaxPlayerOpts {
     int max_depth = 0;  // use default
     bool experiment = false;
+    bool verbose = false;
 };
 
 struct MctsPlayerOpts {

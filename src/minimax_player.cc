@@ -144,10 +144,11 @@ int FindBestTurns(const State &state, int search_depth, std::vector<Turn> &best_
 
 class MinimaxPlayer : public GamePlayer {
 public:
-    MinimaxPlayer(int max_search_depth, bool experiment) :
+    MinimaxPlayer(int max_search_depth, bool experiment, bool verbose) :
             rng(InitializeRng()),
             max_search_depth(max_search_depth),
-            experiment(experiment) {}
+            experiment(experiment),
+            verbose(verbose) {}
 
     std::optional<Turn> SelectTurn(const State &state) override;
 
@@ -155,6 +156,7 @@ private:
     rng_t rng;
     int max_search_depth;
     bool experiment;
+    bool verbose;
 };
 
 std::optional<Turn> MinimaxPlayer::SelectTurn(const State &state) {
@@ -162,22 +164,24 @@ std::optional<Turn> MinimaxPlayer::SelectTurn(const State &state) {
     int value = FindBestTurns(state, max_search_depth, turns, experiment);
     assert(!turns.empty());
     int start_value = Evaluate(state, experiment);
-    std::cerr << "Minimax value: " << value << " (" << (value > start_value ? "+" : "") << (value - start_value) << ")\n";
-    std::cerr << "Optimal turns:";
-    for (const Turn &turn : turns) std::cerr << ' ' << turn;
-    std::cerr << '\n';
+    if (verbose) {
+        std::cerr << "Minimax value: " << value << " (" << (value > start_value ? "+" : "") << (value - start_value) << ")\n";
+        std::cerr << "Optimal turns:";
+        for (const Turn &turn : turns) std::cerr << ' ' << turn;
+        std::cerr << '\n';
+    }
     Turn turn;
     if (turns.size() == 1) {
         // Only one choice.
         turn = turns[0];
     } else {
         turn = Choose(rng, turns);
-        std::cerr << "Randomly selected: " << turn << '\n';
+        if (verbose) std::cerr << "Randomly selected: " << turn << '\n';
     }
     return turn;
 }
 
 GamePlayer *CreateMinimaxPlayer(const MinimaxPlayerOpts &opts) {
     int max_depth = opts.max_depth > 0 ? opts.max_depth : default_max_search_depth;
-    return new MinimaxPlayer(max_depth, opts.experiment);
+    return new MinimaxPlayer(max_depth, opts.experiment, opts.verbose);
 }
