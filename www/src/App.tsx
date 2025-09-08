@@ -349,10 +349,18 @@ function reduceAppState(state: AppState, action: AppAction): AppState {
             };
 
         case 'partial-turn-reset':
-            return {...state, partialTurn: []};
+            return {
+                ...state,
+                partialTurn: [],
+                selectedGod: undefined,
+            };
 
         case 'partial-turn-add-action':
-            return {...state, partialTurn: [...state.partialTurn, action.action]};
+            return {
+                ...state,
+                partialTurn: [...state.partialTurn, action.action],
+                selectedGod: action.action.god,
+            };
 
         case 'partial-turn-finish':
             return changeState(state.augmentedState.addTurn(new Turn(state.partialTurn)), []);
