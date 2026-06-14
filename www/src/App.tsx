@@ -9,6 +9,7 @@ import { decodeStateString, GameState } from './game/state.ts';
 import type { GodValue } from './game/gods.ts';
 import { classNames } from './utils.ts';
 import { Player, type PlayerValue } from './game/player.ts';
+import { ErrorBoundary } from './ErrorBoundary.tsx';
 
 const playerOptions = {
     human:    { title: 'Human',             playerDesc: null },
@@ -415,6 +416,60 @@ function reduceAppState(state: AppState, action: AppAction): AppState {
     }
 }
 
+function AppCrashComponent({appState}: {appState: AppState}) {
+    // Create save strings so the user can (at least potentially) save the state
+    // and continue without losing game progress.
+    //
+    // The logic to generate strings is similar to the SaveStateComponent, except
+    // since we already crashed, the app state may be invalid, so wrap each call
+    // in a try-catch block to avoid crashing the crash component itself. Errors
+    // are ignored because the root cause has already been logged, and additional
+    // error messages are more likely to confuse than enlighten.
+    let gameStateString: string | null = null;
+    try {
+        gameStateString = appState.augmentedState.lastGameState.toString();
+    } catch {}
+    let turnHistoryString: string | null = null;
+    try {
+        turnHistoryString = formatTurnHistory(appState.augmentedState.history);
+    } catch {}
+    let compactTurnHistoryString: string | null = null;
+    try {
+        compactTurnHistoryString = formatCompactTurnHistory(appState.augmentedState.history);
+    } catch {}
+
+    return (
+        <div className="">
+            <div className="main-column">
+                <h1>App crashed!</h1>
+                <p>
+                    The app has crashed. See the Javascript console for more information.
+                    {(gameStateString || compactTurnHistoryString || turnHistoryString) &&
+                        "To continue please save your state and reload the page."}
+                </p>
+                {gameStateString &&
+                    <>
+                        <h2>Final game state</h2>
+                        <CopyableStringComponent desc="final game state" text={gameStateString}/>
+                    </>
+                }
+                {compactTurnHistoryString &&
+                    <>
+                        <h2>Compact turn history</h2>
+                        <CopyableStringComponent desc="compact turn history" text={compactTurnHistoryString}/>
+                    </>
+                }
+                {turnHistoryString &&
+                    <>
+                        <h2>Verbose turn history</h2>
+                        <CopyableStringComponent desc="verbose turn history" text={turnHistoryString}/>
+                    </>
+                }
+            </div>
+        </div>
+    );
+}
+
 export default function App() {
     const [appState, dispatch] = useReducer(reduceAppState, undefined, initAppState);
 
@@ -502,56 +557,58 @@ export default function App() {
 
     return (
         <div className="mytikas-app">
-            <div className="main-column">
-                <StateButtonsComponent
-                    onSave={showSaveDialog}
-                    onLoad={handleLoad}
-                    onUndo={canUndo ? undo : undefined}
-                    onRedo={canRedo ? redo : undefined}
-                    onHistory={historyVisible ? undefined : showHistory}
-                    historyFlash={!historyVisible && selectedTurn != null}
-                />
-                <div className="turn-row">
-                    <PlayerSelectComponent
-                        light={lightPlayer}
-                        dark={darkPlayer}
-                        setLight={setLightPlayer}
-                        setDark={setDarkPlayer}
+            <ErrorBoundary fallback={<AppCrashComponent appState={appState} />}>
+                <div className="main-column">
+                    <StateButtonsComponent
+                        onSave={showSaveDialog}
+                        onLoad={handleLoad}
+                        onUndo={canUndo ? undo : undefined}
+                        onRedo={canRedo ? redo : undefined}
+                        onHistory={historyVisible ? undefined : showHistory}
+                        historyFlash={!historyVisible && selectedTurn != null}
                     />
-                    <PartialTurnComponent
-                        enabled={userEnabled}
-                        turnString={partialTurnToString(partialTurn)}
-                        onRestart={userEnabled && partialTurn.length > 0 ? partialTurnReset : undefined}
-                        onFinish={userEnabled && partialTurnIsComplete ? partialTurnFinish : undefined}
-                        finishHint={userEnabled && nextActions.length === 0}
+                    <div className="turn-row">
+                        <PlayerSelectComponent
+                            light={lightPlayer}
+                            dark={darkPlayer}
+                            setLight={setLightPlayer}
+                            setDark={setDarkPlayer}
+                        />
+                        <PartialTurnComponent
+                            enabled={userEnabled}
+                            turnString={partialTurnToString(partialTurn)}
+                            onRestart={userEnabled && partialTurn.length > 0 ? partialTurnReset : undefined}
+                            onFinish={userEnabled && partialTurnIsComplete ? partialTurnFinish : undefined}
+                            finishHint={userEnabled && nextActions.length === 0}
+                        />
+                    </div>
+                    <GameComponent
+                        state={gameState}
+                        nextActions={nextActions}
+                        selectedGod={selectedGod}
+                        onSelect={userEnabled ? toggleSelectedGod : undefined}
+                        onAction={userEnabled ? partialTurnAddAction : undefined}
                     />
+                    <p className="bottom-links">
+                        <a href="https://github.com/maksverver/mytikas/">Source code</a>
+                        &nbsp;&nbsp;&nbsp;●&nbsp;&nbsp;&nbsp;
+                        <a href="https://github.com/maksverver/mytikas/blob/master/RULES.md">Rules summary</a>
+                    </p>
                 </div>
-                <GameComponent
-                    state={gameState}
-                    nextActions={nextActions}
-                    selectedGod={selectedGod}
-                    onSelect={userEnabled ? toggleSelectedGod : undefined}
-                    onAction={userEnabled ? partialTurnAddAction : undefined}
+                {historyVisible ?
+                    <HistoryComponent
+                        state={augmentedState}
+                        selected={selectedTurn}
+                        setSelected={partialTurn.length === 0 ? selectTurn : undefined}
+                        onClose={hideHistory}
+                    />
+                    : undefined}
+                <SaveStateComponent
+                    augmentedState={augmentedState}
+                    visible={saveDialogVisible}
+                    onClose={hideSaveDialog}
                 />
-                <p className="bottom-links">
-                    <a href="https://github.com/maksverver/mytikas/">Source code</a>
-                    &nbsp;&nbsp;&nbsp;●&nbsp;&nbsp;&nbsp;
-                    <a href="https://github.com/maksverver/mytikas/blob/master/RULES.md">Rules summary</a>
-                </p>
-            </div>
-            {historyVisible ?
-                <HistoryComponent
-                    state={augmentedState}
-                    selected={selectedTurn}
-                    setSelected={partialTurn.length === 0 ? selectTurn : undefined}
-                    onClose={hideHistory}
-                />
-                : undefined}
-            <SaveStateComponent
-                augmentedState={augmentedState}
-                visible={saveDialogVisible}
-                onClose={hideSaveDialog}
-            />
+            </ErrorBoundary>
         </div>
     );
 }
