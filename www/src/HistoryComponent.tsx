@@ -47,8 +47,8 @@ export type HistoryProps = {
 export function HistoryComponent({state, selected, setSelected, onClose}: HistoryProps) {
     const turnCount = state.history.length;
 
-    const hasPrev = (selected ?? turnCount) > 0;
-    const hasNext = (selected ?? turnCount) < turnCount;
+    const canPrev = setSelected != null && (selected ?? turnCount) > 0;
+    const canNext = setSelected != null && (selected ?? turnCount) < turnCount;
 
     const moveToFirst = () => setSelected?.(turnCount > 0 ? 0 : undefined);
     const moveToPrev  = () => setSelected?.(selected != null && selected > 0 ? selected - 1 : turnCount > 0 ? turnCount - 1 : undefined);
@@ -69,10 +69,10 @@ export function HistoryComponent({state, selected, setSelected, onClose}: Histor
         if (setSelected == null) return;
         function handleKeyDown(e: KeyboardEvent) {
             switch (e.key) {
-            case 'Home':       if (hasPrev) moveToFirst(); break;
-            case 'ArrowLeft':  if (hasPrev) moveToPrev(); break;
-            case 'ArrowRight': if (hasNext) moveToNext(); break;
-            case 'End':        if (hasNext) moveToLast(); break;
+            case 'Home':       if (canPrev) moveToFirst(); break;
+            case 'ArrowLeft':  if (canPrev) moveToPrev(); break;
+            case 'ArrowRight': if (canNext) moveToNext(); break;
+            case 'End':        if (canNext) moveToLast(); break;
             }
         }
         document.addEventListener('keydown', handleKeyDown);
@@ -101,23 +101,24 @@ export function HistoryComponent({state, selected, setSelected, onClose}: Histor
                 <div className="buttons">
                     <button
                         title="To game start (home)"
-                        disabled={setSelected == null || !hasPrev}
+                        disabled={!canPrev}
                         onClick={moveToFirst}
                     >⏮️</button>
                     <button
                         title="Previous turn (left)"
-                        disabled={setSelected == null || !hasPrev}
+                        disabled={!canPrev}
                         onClick={moveToPrev}
                     >◀️</button>
                     <button
                         title="Next turn (right)"
-                        disabled={setSelected == null || !hasNext}
+                        disabled={!canNext}
                         onClick={moveToNext}
                     >▶️</button>
                     <button
                         title="To game end (end)"
-                        disabled={setSelected == null || !hasNext}
+                        disabled={!canNext}
                         onClick={moveToLast}
+                        className={classNames({flash: canNext})}
                     >⏭️</button>
                     <button
                         title="Hide history"

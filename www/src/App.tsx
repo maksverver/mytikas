@@ -333,6 +333,7 @@ function reduceAppState(state: AppState, action: AppAction): AppState {
         return {
             ...state,
             augmentedState,
+            selectedTurn: undefined,
             partialTurn: [],
             selectedGod: undefined,
             redoStack,
@@ -525,8 +526,12 @@ export default function App() {
 
     // For undoing/redoing, we move to the previous/next state where it was the
     // user's turn to move, otherwise the AI would just immediately move again.
-    const canUndo = augmentedState.gameStates.findIndex(s => aiPlayer[s.player] == null) < augmentedState.gameStates.length - 1;
-    const canRedo = redoStack.some(s => aiPlayer[s.gameState.player] == null);
+    // To prevent confusion, also disable undo/redo when a turn is selected in the
+    // history (i.e., the last game state is not what is displayed).
+    const canUndo = selectedTurn == null &&
+        augmentedState.gameStates.findIndex(s => aiPlayer[s.player] == null) < augmentedState.gameStates.length - 1;
+    const canRedo = selectedTurn == null &&
+            redoStack.some(s => aiPlayer[s.gameState.player] == null);
 
     function handleLoad() {
         let s = prompt("Enter game state or move history");
