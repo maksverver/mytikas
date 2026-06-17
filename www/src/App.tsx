@@ -378,7 +378,7 @@ function reduceAppState(state: AppState, action: AppAction): AppState {
                 let augmentedState = state.augmentedState;
                 let redoStack = Array.from(state.redoStack);
                 let redoState: RedoState;
-                while (augmentedState.canUndo) {
+                while (augmentedState.canUndo()) {
                     [augmentedState, redoState] = augmentedState.undoTurn();
                     redoStack.push(redoState);
                     if (isUserControlled(state, augmentedState.lastGameState.player)) break;
@@ -528,8 +528,9 @@ export default function App() {
     // user's turn to move, otherwise the AI would just immediately move again.
     // To prevent confusion, also disable undo/redo when a turn is selected in the
     // history (i.e., the last game state is not what is displayed).
+    const humanIndex = augmentedState.gameStates.findIndex(s => aiPlayer[s.player] == null);
     const canUndo = selectedTurn == null &&
-        augmentedState.gameStates.findIndex(s => aiPlayer[s.player] == null) < augmentedState.gameStates.length - 1;
+            0 <= humanIndex && humanIndex < augmentedState.gameStates.length - 1;
     const canRedo = selectedTurn == null &&
             redoStack.some(s => aiPlayer[s.gameState.player] == null);
 
