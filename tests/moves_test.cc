@@ -1053,6 +1053,33 @@ TEST_F(MovesTest, Apollo_Special) {
     EXPECT_EQ(hp(DARK,  ZEUS), 2);  // 5 - 3, direct horizontal attack
 }
 
+// Additional tests for Apollo's (in)direct attacks: if an attack lies on a
+// straight line but needs to move around another piece (either an ally or
+// enemy) then it does NOT count as a direct attack.
+TEST_F(MovesTest, Apollo_Attacks_Indirectly) {
+    state = BoardTemplate(
+            "     .     "
+            "    .z.    "
+            "   e.p.h   "
+            "  ....E..  "
+            " ....O.... "
+            "  .......  "
+            "   .....   "
+            "    ...    "
+            "     .     "
+    ).ToState(LIGHT);
+
+    ExecuteTurn("O!e8");
+    EndTurn();
+    ExecuteTurn("O!g7");
+    EndTurn();
+    ExecuteTurn("O!c7");
+
+    EXPECT_EQ(hp(DARK, ZEUS),       pantheon[ZEUS].hit       - pantheon[APOLLO].dmg);     // indirect
+    EXPECT_EQ(hp(DARK, HEPHAESTUS), pantheon[HEPHAESTUS].hit - pantheon[APOLLO].dmg);     // indirect
+    EXPECT_EQ(hp(DARK, HERA),       pantheon[HERA].hit       - pantheon[APOLLO].dmg - 1); // direct
+}
+
 // Aphrodite moves the same as Hermes
 TEST_F(MovesTest, Aphrodite_Moves) {
     TestMovement(LIGHT, APHRODITE,

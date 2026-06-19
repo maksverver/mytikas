@@ -678,6 +678,29 @@ void GenerateSummons(TurnBuilder &builder, bool may_move_after) {
     }
 }
 
+// Checks if the attack from `src` to `dst` is a_direct attack, which is true if
+// the line segment from `src` to `dst` points in one of eight directions, and
+// all the fields in between are empty.
+bool IsDirectAttack(const State &state, field_t src, field_t dst) {
+    auto [r1, c1] = FieldCoords(src);
+    auto [r2, c2] = FieldCoords(dst);
+    int dr = r2 - r1;
+    int dc = c2 - c1;
+    if (dr == 0 || dc == 0 || abs(dr) == abs(dc)) {
+        int n = std::max(abs(dr), abs(dc));
+        if (n == 0) return true;  // shouldn't happen in practice
+        assert(dr % n == 0);
+        assert(dc % n == 0);
+        dr /= n;
+        dc /= n;
+        for (int i = 1; i < n; ++i) {
+            if (state.IsOccupied(FieldIndex(r1 + i*dr, c1 + i*dc))) return false;
+        }
+        return true;
+    }
+    return false;
+}
+
 int GetDamage(const State &state, Player player, God god, field_t target) {
     int damage = pantheon[god].dmg;
 
@@ -700,11 +723,7 @@ int GetDamage(const State &state, Player player, God god, field_t target) {
         case APOLLO:
             {
                 field_t source = state.fi(player, god);
-                auto [r1, c1] = FieldCoords(source);
-                auto [r2, c2] = FieldCoords(target);
-                int dr = r2 - r1;
-                int dc = c2 - c1;
-                if (dr == 0 || dc == 0 || abs(dr) == abs(dc)) ++damage;
+                if (IsDirectAttack(state, source, target)) ++damage;
             }
             break;
 
